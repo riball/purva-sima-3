@@ -99,20 +99,20 @@ export default function Phase5View() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          borderLeft: '4px solid #38bdf8',
+          borderLeft: '4px solid var(--accent-cyan)',
         }}
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-cyan">Phase 5</span>
-            <span style={{ fontSize: '0.8125rem', color: '#38bdf8', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
               Quarterly Bill Reconciliation
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Certificate of Payment vs Baseline
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 640 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 640 }}>
             Upload each quarter's Certificate of Payment (the "Cummulative Quanity Summary" PDF) — every Item Code is matched
             against the same emission-factor dataset a Work Order upload uses, and compared against this project's Phase 3 baseline.
           </p>
@@ -131,11 +131,11 @@ export default function Phase5View() {
           className="glass-panel"
           style={{ padding: 30, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}
         >
-          <AlertTriangle size={32} color="#f59e0b" />
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc' }}>
+          <AlertTriangle size={32} color="var(--accent-amber)" />
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             No Baseline Recorded For This Project Yet
           </h3>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 440 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 440 }}>
             Phase 5 compares every Certificate of Payment against the same baseline Phase 3 uses. Set the project baseline
             from the Phase 3 tab first, then come back here to log quarterly bills.
           </p>
@@ -194,19 +194,19 @@ export default function Phase5View() {
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(420px, 1.3fr) minmax(320px, 1fr)', gap: 24, alignItems: 'start' }}>
             <div className="glass-panel" style={{ padding: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <TrendingUp size={16} color="#3182CE" />
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                <TrendingUp size={16} color="var(--accent-lime)" />
+                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Cumulative Carbon vs Baseline
                 </h3>
               </div>
               <LineChartCarbon points={dashboard.points} baselineTonnes={baselineTonnes} />
-              <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: '0.72rem', color: '#94a3b8' }}>
+              <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 14, height: 2, background: '#3182CE', display: 'inline-block', borderRadius: 2 }} />
+                  <span style={{ width: 14, height: 2, background: 'var(--accent-lime)', display: 'inline-block', borderRadius: 2 }} />
                   Billed cumulative
                 </span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <span style={{ width: 14, height: 0, borderTop: '2px dashed #f59e0b', display: 'inline-block' }} />
+                  <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--accent-amber)', display: 'inline-block' }} />
                   Baseline
                 </span>
               </div>
@@ -214,15 +214,15 @@ export default function Phase5View() {
 
             <div className="glass-panel" style={{ padding: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <BarChart3 size={16} color="#38bdf8" />
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                <BarChart3 size={16} color="var(--accent-cyan)" />
+                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Latest COP · Carbon by Material
                 </h3>
               </div>
               {latestCopBill ? (
                 <CategoryBarChart categories={latestCopBill.category_breakdown || []} />
               ) : (
-                <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>
+                <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
                   Log a Certificate of Payment to see its material breakdown here.
                 </div>
               )}
@@ -231,14 +231,14 @@ export default function Phase5View() {
 
           {/* Bills table */}
           <div className="glass-panel" style={{ padding: 22 }}>
-            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>
+            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>
               All Logged Bills (Phase 3 + Phase 5)
             </h3>
             {bills.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(56, 189, 248, 0.15)', color: '#38bdf8', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <tr style={{ borderBottom: '1px solid rgba(var(--c-cyan), 0.15)', color: 'var(--accent-cyan)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       <th style={{ padding: '8px 12px' }}>Period</th>
                       <th style={{ padding: '8px 12px' }}>Billed Date</th>
                       <th style={{ padding: '8px 12px' }}>Source</th>
@@ -249,9 +249,9 @@ export default function Phase5View() {
                   </thead>
                   <tbody>
                     {bills.map((b, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '0.8125rem' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#f8fafc' }}>{b.period}</td>
-                        <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{b.billed_date}</td>
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(var(--c-overlay), 0.04)', fontSize: '0.8125rem' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>{b.period}</td>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-tertiary)' }}>{b.billed_date}</td>
                         <td style={{ padding: '8px 12px' }}>
                           {b.bill_source === 'pdf_cop' ? (
                             <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
@@ -261,13 +261,13 @@ export default function Phase5View() {
                             <span className="badge badge-muted" style={{ fontSize: '0.65rem' }}>Excel BOQ</span>
                           )}
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#3182CE', fontWeight: 600 }}>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--accent-lime)', fontWeight: 600 }}>
                           {(b.total_gwp_kg_co2e_to_date / 1000).toFixed(1)}
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#cbd5e1' }}>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
                           ₹{(b.total_value_to_date / 100000).toFixed(1)}L
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#94a3b8' }}>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--text-tertiary)' }}>
                           {b.n_lines_computed}/{b.n_lines_total}
                         </td>
                       </tr>
@@ -276,7 +276,7 @@ export default function Phase5View() {
                 </table>
               </div>
             ) : (
-              <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                 No bills logged yet. Click "Log Certificate of Payment" above to record the first quarter.
               </p>
             )}
@@ -288,15 +288,15 @@ export default function Phase5View() {
       {showBillModal && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
+            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               Log Certificate of Payment
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               Upload the quarter's Certificate of Payment PDF. Item Codes in its "Cummulative Quanity Summary" table are matched
               against this company's emission-factor dataset automatically.
             </p>
@@ -343,8 +343,8 @@ export default function Phase5View() {
 
               <div
                 style={{
-                  border: '2px dashed rgba(56, 189, 248, 0.3)', borderRadius: 'var(--radius-md)', padding: 20,
-                  textAlign: 'center', background: 'rgba(9, 16, 11, 0.6)',
+                  border: '2px dashed rgba(var(--c-cyan), 0.3)', borderRadius: 'var(--radius-md)', padding: 20,
+                  textAlign: 'center', background: 'rgba(var(--c-surf-1), 0.6)',
                 }}
               >
                 <input
@@ -358,8 +358,8 @@ export default function Phase5View() {
                   htmlFor="cop-bill-file-input"
                   style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
                 >
-                  <Upload size={20} color="#38bdf8" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#f8fafc' }}>
+                  <Upload size={20} color="var(--accent-cyan)" />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {billFile ? billFile.name : 'Select Certificate of Payment (.pdf)'}
                   </span>
                 </label>

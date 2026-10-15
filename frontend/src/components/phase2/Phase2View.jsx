@@ -155,14 +155,14 @@ export default function Phase2View() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-mint">Phase 2</span>
-            <span style={{ fontSize: '0.8125rem', color: '#3182CE', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
               Calculate For Real
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Real BOQ & Work Order Ingestion
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 640 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 640 }}>
             Upload a BOQ, a Work Order, or both at once — each is classified and computed independently in the background,
             so you're free to keep working elsewhere while it runs.
           </p>
@@ -229,12 +229,12 @@ export default function Phase2View() {
 
         <div
           style={{
-            background: 'rgba(245, 158, 11, 0.08)',
-            border: '1px solid rgba(245, 158, 11, 0.25)',
+            background: 'rgba(var(--c-amber), 0.08)',
+            border: '1px solid rgba(var(--c-amber), 0.25)',
             borderRadius: 'var(--radius-md)',
             padding: '10px 14px',
             fontSize: '0.78rem',
-            color: '#fbbf24',
+            color: 'var(--accent-amber-light)',
             display: 'flex',
             alignItems: 'center',
             gap: 10,
@@ -263,7 +263,7 @@ export default function Phase2View() {
         <JobResultsCompare jobs={allJobs} />
       ) : (
         !isLoadingJobs && (
-          <div className="glass-panel" style={{ padding: 28, textAlign: 'center', color: '#64748b', fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <div className="glass-panel" style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
             <Clock size={22} />
             <span>No uploads yet — start one above and it'll show up here the moment it's queued.</span>
           </div>
@@ -277,7 +277,7 @@ export default function Phase2View() {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(0, 0, 0, 0.8)',
+            background: 'rgba(var(--c-black), 0.8)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -288,10 +288,10 @@ export default function Phase2View() {
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   What-If Material Substitution Sandbox
                 </h3>
-                <p style={{ fontSize: '0.8125rem', color: '#94a3b8' }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)' }}>
                   Simulate verified lower-carbon alternatives against the uploaded BOQ file. Recomputed line-by-line for real.
                 </p>
               </div>
@@ -307,25 +307,25 @@ export default function Phase2View() {
                   <div
                     key={sub.id}
                     style={{
-                      background: 'rgba(10, 18, 12, 0.7)',
+                      background: 'rgba(var(--c-surf-2), 0.7)',
                       padding: 16,
                       borderRadius: 'var(--radius-md)',
-                      border: '1px solid rgba(49, 130, 206, 0.15)',
+                      border: '1px solid rgba(var(--c-blue), 0.15)',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                       <div>
-                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc' }}>{sub.substitute_label}</span>
+                        <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{sub.substitute_label}</span>
                         <span className="badge badge-lime" style={{ fontSize: '0.65rem', marginLeft: 8 }}>
                           Max {sub.max_recommended_pct}%
                         </span>
                       </div>
-                      <span className="tabular-nums" style={{ fontSize: '1rem', fontWeight: 700, color: '#3182CE' }}>
+                      <span className="tabular-nums" style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-lime)' }}>
                         {currentPct}%
                       </span>
                     </div>
 
-                    <p style={{ fontSize: '0.75rem', color: '#94a3b8', lineHeight: 1.4, marginBottom: 10 }}>{sub.reasoning}</p>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', lineHeight: 1.4, marginBottom: 10 }}>{sub.reasoning}</p>
 
                     <input
                       type="range"
@@ -337,7 +337,7 @@ export default function Phase2View() {
                         const val = e.target.value
                         setSelectedSubs((prev) => ({ ...prev, [sub.id]: val }))
                       }}
-                      style={{ width: '100%', accentColor: '#3182CE', cursor: 'pointer' }}
+                      style={{ width: '100%', accentColor: 'var(--accent-lime)', cursor: 'pointer' }}
                     />
                   </div>
                 )
@@ -351,34 +351,34 @@ export default function Phase2View() {
             {subSimResult && (
               <div
                 style={{
-                  background: 'rgba(12, 22, 15, 0.9)',
+                  background: 'rgba(var(--c-surf-5), 0.9)',
                   padding: 20,
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(49, 130, 206, 0.3)',
+                  border: '1px solid rgba(var(--c-blue), 0.3)',
                 }}
               >
-                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#3182CE', marginBottom: 12 }}>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--accent-lime)', marginBottom: 12 }}>
                   Combined Substitution Impact
                 </h4>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Original Carbon:</span>
-                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Original Carbon:</span>
+                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       {(subSimResult.base_total_gwp_kg_co2e / 1000).toFixed(1)} t
                     </div>
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Substituted Carbon:</span>
-                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: '#4299E1' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Substituted Carbon:</span>
+                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--accent-lime-hover)' }}>
                       {(subSimResult.combined_total_gwp_kg_co2e / 1000).toFixed(1)} t
                     </div>
                   </div>
 
                   <div>
-                    <span style={{ fontSize: '0.72rem', color: '#64748b' }}>Reduction Achieved:</span>
-                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: '#3182CE' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Reduction Achieved:</span>
+                    <div className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--accent-lime)' }}>
                       -{subSimResult.combined_savings_pct.toFixed(1)}% ({(subSimResult.combined_savings_kg_co2e / 1000).toFixed(1)} t)
                     </div>
                   </div>
@@ -397,11 +397,11 @@ function Dropzone({ icon: Icon, label, hint, accept, file, onSelect, onClear }) 
   return (
     <div
       style={{
-        border: `2px dashed ${file ? 'rgba(49, 130, 206, 0.5)' : 'rgba(49, 130, 206, 0.25)'}`,
+        border: `2px dashed ${file ? 'rgba(var(--c-blue), 0.5)' : 'rgba(var(--c-blue), 0.25)'}`,
         borderRadius: 'var(--radius-lg)',
         padding: '26px 18px',
         textAlign: 'center',
-        background: file ? 'rgba(49, 130, 206, 0.06)' : 'rgba(10, 18, 12, 0.65)',
+        background: file ? 'rgba(var(--c-blue), 0.06)' : 'rgba(var(--c-surf-2), 0.65)',
         cursor: 'pointer',
         transition: 'border-color var(--transition-fast), background var(--transition-fast)',
         position: 'relative',
@@ -427,7 +427,7 @@ function Dropzone({ icon: Icon, label, hint, accept, file, onSelect, onClear }) 
             position: 'absolute',
             top: 8,
             right: 8,
-            background: 'rgba(0,0,0,0.4)',
+            background: 'rgba(var(--c-black),0.4)',
             border: 'none',
             borderRadius: '50%',
             width: 22,
@@ -435,7 +435,7 @@ function Dropzone({ icon: Icon, label, hint, accept, file, onSelect, onClear }) 
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#f8fafc',
+            color: 'var(--text-primary)',
             cursor: 'pointer',
           }}
         >
@@ -449,20 +449,20 @@ function Dropzone({ icon: Icon, label, hint, accept, file, onSelect, onClear }) 
             width: 44,
             height: 44,
             borderRadius: '50%',
-            background: 'rgba(49, 130, 206, 0.1)',
+            background: 'rgba(var(--c-blue), 0.1)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#3182CE',
+            color: 'var(--accent-lime)',
           }}
         >
           {file ? <Icon size={22} /> : <Upload size={22} />}
         </div>
         <div>
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
             {file ? file.name : label}
           </span>
-          <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: 4 }}>{file ? 'Selected — ready to queue' : hint}</p>
+          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{file ? 'Selected — ready to queue' : hint}</p>
         </div>
       </div>
     </div>

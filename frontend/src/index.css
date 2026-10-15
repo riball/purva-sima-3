@@ -5,11 +5,20 @@
    ========================================================================== */
 
 :root {
-  /* Color Palette - Deep Forest Teal (Requested Theme) */
+  /* Color Palette - Deep Forest Teal (Requested Theme) -- this block is
+     the DARK theme and is also the default (no data-theme attribute set).
+     A parallel `:root[data-theme="light"]` block further down overrides
+     every token that actually needs to flip for a light surface; accent
+     hues (blue/amber/rose/cyan/violet/etc.) are deliberately left
+     identical in both themes -- they were chosen at saturations that
+     already read correctly on both near-black and near-white backgrounds
+     (the same reason Tailwind/Chakra ship a single "600" swatch for use
+     in both modes), so only backgrounds, glass surfaces, text, inputs,
+     and shadows need per-theme values. */
   --bg-primary: #0B2B26;
   --bg-secondary: #081d1a;
   --bg-tertiary: #0e342e;
-  
+
   /* Glass Surfaces */
   --glass-bg: rgba(16, 28, 20, 0.15);
   --glass-bg-hover: rgba(22, 38, 27, 0.25);
@@ -18,31 +27,68 @@
   --glass-border-hover: rgba(44, 82, 130, 0.35);
   --glass-border-active: rgba(49, 130, 206, 0.6);
   --glass-shadow: 0 12px 36px 0 rgba(0, 0, 0, 0.45);
-  
-  /* Accents - Earth Blue */
+
+  /* Accents - Earth Blue (same value in both themes, see note above) */
   --accent-lime: #3182CE;
   --accent-lime-hover: #4299E1;
   --accent-lime-dim: #2C5282;
   --accent-lime-glow: transparent;
-  
+
   --accent-mint: #3182CE;
   --accent-mint-dim: #2C5282;
   --accent-mint-glow: transparent;
 
   --accent-amber: #f59e0b;
   --accent-amber-glow: transparent;
-  
+  --accent-amber-light: #fbbf24;
+
   --accent-cyan: #38bdf8;
   --accent-cyan-glow: transparent;
-  
+  --accent-skyblue: #7dd3fc;
+
   --accent-rose: #f43f5e;
+  --accent-rose-light: #fb7185;
+
+  --accent-violet: #a78bfa;
+  --accent-violet-light: #c4b5fd;
+  --accent-emerald: #34d399;
+  --accent-lime-green: #84cc16;
+  --accent-green-light: #90EE90;
+  --accent-orange: #fb923c;
+  --border-slate: #334155;
+
+  /* RGB triples (no "rgba(" wrapper) so inline `rgba(var(--c-x), A)` calls
+     can keep each call site's own alpha while the base color still flips
+     with the theme. --c-black/--c-white stay fixed across themes on
+     purpose: --c-black backs scrims/shadows (always dark in both modes)
+     and --c-white backs the "subtle hover wash" pattern, whose BASE flips
+     to a dark tint in light mode via --c-overlay instead. */
+  --c-black: 0, 0, 0;
+  --c-white: 255, 255, 255;
+  --c-overlay: 255, 255, 255;
+  --c-blue: 49, 130, 206;
+  --c-blue-dim: 44, 82, 130;
+  --c-amber: 245, 158, 11;
+  --c-rose: 244, 63, 94;
+  --c-cyan: 56, 189, 248;
+  --c-violet: 167, 139, 250;
+  --c-lime-green: 132, 204, 22;
+  --c-bg: 11, 43, 38;
+  --c-surf-1: 9, 16, 11;
+  --c-surf-2: 10, 18, 12;
+  --c-surf-3: 16, 28, 20;
+  --c-surf-4: 18, 30, 22;
+  --c-surf-5: 12, 22, 16;
+  --c-surf-6: 8, 15, 10;
+  --c-surf-7: 9, 20, 14;
 
   /* Typography */
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  
+
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
   --text-muted: #64748b;
   --text-dim: #475569;
   --text-emerald: #3182CE;
@@ -63,6 +109,62 @@
   /* Transitions */
   --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   LIGHT THEME
+   Applied when <html data-theme="light">. Only the tokens that genuinely
+   need to invert for a light surface are listed here (backgrounds, glass
+   surfaces, text, inputs, shadows, the two neutral RGB ramps). Everything
+   else -- accent hues, radii, transitions, fonts -- is intentionally
+   inherited unchanged from :root above.
+   ========================================================================== */
+:root[data-theme="light"] {
+  --bg-primary: #F3F6F4;
+  --bg-secondary: #E8EDEA;
+  --bg-tertiary: #FFFFFF;
+
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-bg-hover: rgba(255, 255, 255, 0.72);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(49, 130, 206, 0.18);
+  --glass-border-hover: rgba(44, 82, 130, 0.35);
+  --glass-border-active: rgba(49, 130, 206, 0.6);
+  --glass-shadow: 0 12px 36px 0 rgba(15, 23, 42, 0.1);
+
+  --c-overlay: 15, 23, 42;
+  --c-bg: 243, 246, 244;
+  --c-surf-1: 255, 255, 255;
+  --c-surf-2: 255, 255, 255;
+  --c-surf-3: 246, 250, 248;
+  --c-surf-4: 243, 248, 245;
+  --c-surf-5: 250, 253, 251;
+  --c-surf-6: 255, 255, 255;
+  --c-surf-7: 248, 251, 250;
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #64748b;
+  --text-muted: #64748b;
+  --text-dim: #475569;
+
+  --input-bg: rgba(255, 255, 255, 0.9);
+
+  color-scheme: light;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-track {
+  background: rgba(203, 213, 210, 0.5);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(49, 130, 206, 0.25);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(49, 130, 206, 0.45);
 }
 
 /* Reset & Base Setup */
@@ -74,12 +176,19 @@
 
 html {
   font-family: var(--font-sans);
-  color-scheme: dark;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* Theme toggle shouldn't feel like a hard cut -- fade the surfaces that
+   actually change value between light/dark. Scoped to these properties
+   only (not `all`) so layout/hover transitions elsewhere are untouched. */
+body, .glass-panel, .glass-panel-elevated, .form-input, .form-select, input, select, textarea {
+  transition: background-color var(--transition-normal), border-color var(--transition-normal), color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 body {
@@ -370,4 +479,24 @@ body {
 
 .pulse-glow {
   animation: pulseGlow 4s infinite;
+}
+
+/* Mobile fixes -- this app had zero responsive/media-query handling
+   anywhere before this, so several screens overflowed horizontally on a
+   phone-width viewport (measured at 390px): Phase 4's two-column grid
+   (fixed minmax(460px,...)/minmax(500px,...) tracks, which can't shrink
+   below their floor and don't wrap since it's an explicit, not
+   auto-fit, template), and Phase 1's step header (five whiteSpace:nowrap
+   labels in a non-wrapping flex row). Scoped narrowly to the two
+   offending layouts rather than a general redesign. */
+@media (max-width: 640px) {
+  .phase4-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .wizard-progress-steps {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
 }

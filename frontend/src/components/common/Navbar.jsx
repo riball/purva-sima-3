@@ -75,12 +75,12 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
               left: 0,
               bottom: 0,
               width: '280px',
-              background: 'rgba(0, 0, 0, 0.4)',
+              background: 'var(--glass-bg-elevated)',
               borderRight: '1px solid var(--glass-border)',
               zIndex: 1001,
               display: 'flex',
               flexDirection: 'column',
-              boxShadow: '20px 0 50px rgba(0,0,0,0.3)',
+              boxShadow: '20px 0 50px rgba(var(--c-black),0.3)',
               backdropFilter: 'blur(20px)',
             }}
           >
@@ -93,8 +93,8 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
                 <button 
                   onClick={onClose} 
                   style={{ 
-                    background: 'rgba(255,255,255,0.05)', 
-                    border: '1px solid rgba(255,255,255,0.1)', 
+                    background: 'rgba(var(--c-overlay),0.05)', 
+                    border: '1px solid rgba(var(--c-overlay),0.1)', 
                     color: 'var(--text-primary)', 
                     cursor: 'pointer', 
                     fontSize: '0.65rem',
@@ -125,14 +125,14 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
                       fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer',
                       transition: 'all 0.2s',
-                      background: isActive ? 'var(--accent-lime)' : 'rgba(255, 255, 255, 0.04)',
+                      background: isActive ? 'var(--accent-lime)' : 'rgba(var(--c-overlay), 0.04)',
                       color: isActive ? '#000' : 'var(--text-secondary)',
-                      border: isActive ? 'none' : '1px solid rgba(255, 255, 255, 0.1)',
+                      border: isActive ? 'none' : '1px solid rgba(var(--c-overlay), 0.1)',
                       marginBottom: 10,
                       textAlign: 'left',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
-                      boxShadow: isActive ? '0 4px 12px rgba(132, 204, 22, 0.3)' : 'none',
+                      boxShadow: isActive ? '0 4px 12px rgba(var(--c-lime-green), 0.3)' : 'none',
                     }}
                   >
                     <span>{item.label}</span>
@@ -142,7 +142,7 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
             </nav>
 
             {/* Sidebar Footer (Controls) */}
-            <div style={{ padding: '20px', borderTop: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.1)' }}>
+            <div style={{ padding: '20px', borderTop: '1px solid var(--glass-border)', background: 'rgba(var(--c-black),0.1)' }}>
               {/* Company Selector */}
               <div style={{ marginBottom: 16 }}>
                 <label style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-dim)', display: 'block', marginBottom: 8, textTransform: 'uppercase' }}>Company</label>
@@ -181,8 +181,8 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
               <div style={{ 
                 padding: '12px', 
                 borderRadius: 'var(--radius-md)', 
-                background: isBackendOnline ? 'rgba(49, 130, 206, 0.05)' : 'rgba(244, 63, 94, 0.05)',
-                border: `1px solid ${isBackendOnline ? 'rgba(49, 130, 206, 0.1)' : 'rgba(244, 63, 94, 0.1)'}`,
+                background: isBackendOnline ? 'rgba(var(--c-blue), 0.05)' : 'rgba(var(--c-rose), 0.05)',
+                border: `1px solid ${isBackendOnline ? 'rgba(var(--c-blue), 0.1)' : 'rgba(var(--c-rose), 0.1)'}`,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10
@@ -216,7 +216,7 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(var(--c-black), 0.75)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -225,10 +225,10 @@ export default function Navbar({ activeTab, setActiveTab, isOpen, onClose }) {
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 440, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               Register Enterprise Company
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 20 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 20 }}>
               Each company maintains its own project directory, calibrated item-code vocabulary, and historical baselines.
             </p>
 

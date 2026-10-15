@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { SlidersHorizontal, CheckCircle2, XCircle, AlertTriangle, ShieldCheck, History, ArrowDown, FileCheck } from 'lucide-react'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
@@ -17,6 +17,16 @@ export default function Phase4View() {
   const [isProposing, setIsProposing] = useState(false)
   const [isProcessingAction, setIsProcessingAction] = useState(false)
 
+  // Stale-response guard (same bug/fix as TrackingChatHub.jsx's
+  // loadData): loadPhase4Data() is async and can still be in flight when
+  // the user switches to a different project, so a slow response for the
+  // PREVIOUS project can land after the switch and silently overwrite
+  // the new project's state/recommendations/audit log with stale data.
+  const activeProjectIdRef = useRef(activeProjectId)
+  useEffect(() => {
+    activeProjectIdRef.current = activeProjectId
+  }, [activeProjectId])
+
   // Load recommendations & audit log
   useEffect(() => {
     if (!activeProjectId) return
@@ -26,20 +36,26 @@ export default function Phase4View() {
   }, [activeProjectId, activeCompanyId])
 
   const loadPhase4Data = async () => {
+    const requestedProjectId = activeProjectId
     try {
       const state = await api.getCurrentState(activeProjectId, activeCompanyId)
+      if (activeProjectIdRef.current !== requestedProjectId) return
       setCurrentState(state)
     } catch (err) {
+      if (activeProjectIdRef.current !== requestedProjectId) return
       console.log('No current state for Phase 4:', err.message)
       setCurrentState(null)
     }
 
     try {
       const recs = await api.getRecommendations(activeProjectId, null, activeCompanyId)
+      if (activeProjectIdRef.current !== requestedProjectId) return
       setRecommendations(recs)
       const audit = await api.getAuditLog(activeProjectId, activeCompanyId)
+      if (activeProjectIdRef.current !== requestedProjectId) return
       setAuditLog(audit)
     } catch (err) {
+      if (activeProjectIdRef.current !== requestedProjectId) return
       console.log('Phase 4 data not ready:', err.message)
     }
   }
@@ -116,14 +132,14 @@ export default function Phase4View() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-lime">Phase 4</span>
-            <span style={{ fontSize: '0.8125rem', color: '#3182CE', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
               Act On It & Audit
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Lower-Carbon Swaps & Immutable Audit Trail
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
             Propose verified substitutions from the catalog. Confirming triggers a real recompute of every affected line item and writes
             to the permanent append-only audit log. Rejecting leaves zero trace.
           </p>
@@ -183,27 +199,32 @@ export default function Phase4View() {
       {/* Baseline vs Current carbon comparison */}
       {currentState && (
         <div className="glass-panel" style={{ padding: 22 }}>
-          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
             Baseline vs Current Carbon
           </h3>
-          <p style={{ fontSize: '0.75rem', color: '#94a3b8', marginBottom: 6 }}>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: 6 }}>
             Every confirmed swap recomputes this project's real total — never an estimated delta.
           </p>
           <CompareBars
             items={[
-              { label: 'Baseline', value: currentState.baseline_total_gwp_kg_co2e, color: '#f59e0b' },
+              { label: 'Baseline', value: currentState.baseline_total_gwp_kg_co2e, color: 'var(--accent-amber)' },
               {
                 label: 'Current',
                 value: currentState.current_total_gwp_kg_co2e,
-                color: currentState.total_delta_pct <= 0 ? '#3182CE' : '#f43f5e',
+                color: currentState.total_delta_pct <= 0 ? 'var(--accent-lime)' : 'var(--accent-rose)',
               },
             ]}
           />
         </div>
       )}
 
-      {/* Main Grid: Propose Swaps (Left) + Pending & Audit Log (Right) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(460px, 1fr) minmax(500px, 1.2fr)', gap: 24, alignItems: 'start' }}>
+      {/* Main Grid: Propose Swaps (Left) + Pending & Audit Log (Right).
+          phase4-main-grid class (index.css) collapses this to a single
+          stacked column under 640px -- a fixed 2-column explicit template
+          like this one can't shrink below its minmax floors or wrap on
+          its own, so without this it overflowed ~618px wide at a 390px
+          viewport, pushing the whole right panel off-screen. */}
+      <div className="phase4-main-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(460px, 1fr) minmax(500px, 1.2fr)', gap: 24, alignItems: 'start' }}>
         
         {/* Left Column: Propose Swaps from Verified Catalog */}
         <div className="glass-panel" style={{ padding: 24 }}>
@@ -213,20 +234,20 @@ export default function Phase4View() {
                 width: 32,
                 height: 32,
                 borderRadius: '8px',
-                background: 'rgba(49, 130, 206, 0.15)',
+                background: 'rgba(var(--c-blue), 0.15)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#3182CE',
+                color: 'var(--accent-lime)',
               }}
             >
               <SlidersHorizontal size={18} />
             </div>
             <div>
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Propose Material Swap
               </h3>
-              <span style={{ fontSize: '0.75rem', color: '#3182CE' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-lime)' }}>
                 Verified supplier & IS-code catalog
               </span>
             </div>
@@ -258,34 +279,34 @@ export default function Phase4View() {
             {activeSub && (
               <div
                 style={{
-                  background: 'rgba(10, 18, 12, 0.7)',
+                  background: 'rgba(var(--c-surf-2), 0.7)',
                   padding: 16,
                   borderRadius: 'var(--radius-md)',
-                  border: '1px solid rgba(49, 130, 206, 0.15)',
+                  border: '1px solid rgba(var(--c-blue), 0.15)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <span className="badge badge-mint" style={{ fontSize: '0.7rem' }}>
                     {activeSub.evidence_tier.replace(/_/g, ' ')}
                   </span>
-                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
                     Target: {activeSub.base_category}
                   </span>
                 </div>
 
-                <p style={{ fontSize: '0.8125rem', color: '#f8fafc', lineHeight: 1.45, marginBottom: 8 }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.45, marginBottom: 8 }}>
                   {activeSub.reasoning}
                 </p>
 
                 {activeSub.structural_caveat && (
                   <div
                     style={{
-                      background: 'rgba(245, 158, 11, 0.08)',
-                      border: '1px solid rgba(245, 158, 11, 0.25)',
+                      background: 'rgba(var(--c-amber), 0.08)',
+                      border: '1px solid rgba(var(--c-amber), 0.25)',
                       borderRadius: 'var(--radius-sm)',
                       padding: '8px 10px',
                       fontSize: '0.75rem',
-                      color: '#fbbf24',
+                      color: 'var(--accent-amber-light)',
                       display: 'flex',
                       alignItems: 'flex-start',
                       gap: 6,
@@ -303,7 +324,7 @@ export default function Phase4View() {
               <div className="form-group">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                   <label className="form-label">Substitution Share</label>
-                  <span className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: '#3182CE' }}>
+                  <span className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--accent-lime)' }}>
                     {sliderPct}%
                   </span>
                 </div>
@@ -315,10 +336,10 @@ export default function Phase4View() {
                   step="5"
                   value={sliderPct}
                   onChange={(e) => setSliderPct(e.target.value)}
-                  style={{ width: '100%', accentColor: '#3182CE', cursor: 'pointer' }}
+                  style={{ width: '100%', accentColor: 'var(--accent-lime)', cursor: 'pointer' }}
                 />
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                   <span>5% min</span>
                   <span>{activeSub.max_recommended_pct}% recommended max</span>
                 </div>
@@ -341,14 +362,14 @@ export default function Phase4View() {
           {/* Pending Decisions */}
           <div className="glass-panel" style={{ padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Pending Recommendations ({recommendations.filter((r) => r.status === 'pending').length})
               </h3>
               <span className="badge badge-amber">Awaiting Human Decision</span>
             </div>
 
             {recommendations.filter((r) => r.status === 'pending').length === 0 ? (
-              <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                 No pending recommendations. Propose an alternative from the catalog on the left to review its real carbon delta.
               </p>
             ) : (
@@ -359,10 +380,10 @@ export default function Phase4View() {
                     <div
                       key={rec.id}
                       style={{
-                        background: 'rgba(10, 18, 12, 0.8)',
+                        background: 'rgba(var(--c-surf-2), 0.8)',
                         padding: 16,
                         borderRadius: 'var(--radius-md)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                        border: '1px solid rgba(var(--c-amber), 0.3)',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: 10,
@@ -370,10 +391,10 @@ export default function Phase4View() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>
+                          <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                             {rec.label} ({rec.user_pct}%)
                           </span>
-                          <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block' }}>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block' }}>
                             Affects {rec.affected_line_item_count} line items • Proposed {new Date(rec.created_at).toLocaleDateString()}
                           </span>
                         </div>
@@ -382,18 +403,18 @@ export default function Phase4View() {
                         </span>
                       </div>
 
-                      <p style={{ fontSize: '0.78rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
                         {rec.reasoning}
                       </p>
 
                       {rec.requires_engineering_review && (
-                        <div style={{ fontSize: '0.72rem', color: '#fbbf24', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--accent-amber-light)', display: 'flex', alignItems: 'center', gap: 6 }}>
                           <AlertTriangle size={12} />
                           <span>Structural engineering sign-off required prior to field specification</span>
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4, paddingTop: 10, borderTop: '1px solid rgba(var(--c-overlay), 0.05)' }}>
                         <button
                           onClick={() => handleReject(rec.id)}
                           disabled={isProcessingAction}
@@ -422,10 +443,10 @@ export default function Phase4View() {
           <div className="glass-panel" style={{ padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Permanent Audit Trail
                 </h3>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                   Append-only record of confirmed engineering modifications
                 </span>
               </div>
@@ -433,7 +454,7 @@ export default function Phase4View() {
             </div>
 
             {auditLog.length === 0 ? (
-              <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                 No confirmed modifications yet. Confirmed recommendations append here permanently.
               </p>
             ) : (
@@ -442,28 +463,28 @@ export default function Phase4View() {
                   <div
                     key={log.id}
                     style={{
-                      background: 'rgba(10, 18, 12, 0.65)',
+                      background: 'rgba(var(--c-surf-2), 0.65)',
                       padding: 14,
                       borderRadius: 'var(--radius-md)',
-                      border: '1px solid rgba(49, 130, 206, 0.12)',
+                      border: '1px solid rgba(var(--c-blue), 0.12)',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 6,
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc' }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                         {log.label} ({log.user_pct}%)
                       </span>
-                      <span className="tabular-nums" style={{ fontSize: '0.75rem', color: '#3182CE', fontWeight: 600 }}>
+                      <span className="tabular-nums" style={{ fontSize: '0.75rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
                         -{log.delta_pct.toFixed(1)}%
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
                       <span>Before: {(log.total_gwp_kg_co2e_before / 1000).toFixed(1)} t</span>
                       <span>After: {(log.total_gwp_kg_co2e_after / 1000).toFixed(1)} t</span>
-                      <span style={{ color: '#64748b' }}>{new Date(log.confirmed_at).toLocaleString()}</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{new Date(log.confirmed_at).toLocaleString()}</span>
                     </div>
                   </div>
                 ))}

@@ -5,13 +5,13 @@ import React from 'react'
 // (app/services/coverage.py's TOP5_MATERIAL_CATEGORIES) get a stable
 // color each time they appear, on any bill, on any project.
 const CATEGORY_COLORS = {
-  concrete: '#3182CE',
-  reinforcement_steel: '#f59e0b',
-  structural_steel: '#38bdf8',
-  aluminium: '#a78bfa',
-  glass: '#34d399',
+  concrete: 'var(--accent-lime)',
+  reinforcement_steel: 'var(--accent-amber)',
+  structural_steel: 'var(--accent-cyan)',
+  aluminium: 'var(--accent-violet)',
+  glass: 'var(--accent-emerald)',
 }
-const FALLBACK_COLOR = '#94a3b8'
+const FALLBACK_COLOR = 'var(--text-tertiary)'
 const CATEGORY_LABELS = {
   concrete: 'Concrete',
   reinforcement_steel: 'Reinforcement Steel',
@@ -29,7 +29,7 @@ const CATEGORY_LABELS = {
 export default function CategoryBarChart({ categories = [] }) {
   if (!categories || categories.length === 0) {
     return (
-      <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>
+      <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
         No category breakdown available for this bill yet.
       </div>
     )
@@ -47,15 +47,15 @@ export default function CategoryBarChart({ categories = [] }) {
         return (
           <div key={c.category || label}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 4 }}>
-              <span style={{ color: '#cbd5e1', fontWeight: 500, textTransform: 'capitalize' }}>{label}</span>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 500, textTransform: 'capitalize' }}>{label}</span>
               <span className="tabular-nums" style={{ color, fontWeight: 700 }}>
                 {(c.gwp_kg_co2e / 1000).toFixed(1)} t{' '}
-                <span style={{ color: '#64748b', fontWeight: 400 }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
                   ({(c.pct_of_total ?? 0).toFixed(1)}%)
                 </span>
               </span>
             </div>
-            <div style={{ height: 10, borderRadius: 999, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+            <div style={{ height: 10, borderRadius: 999, background: 'rgba(var(--c-overlay),0.05)', overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${Math.max(pct, 2)}%`,

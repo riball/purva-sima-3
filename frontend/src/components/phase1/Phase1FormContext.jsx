@@ -26,6 +26,15 @@ const STEPS = ['mandatory', 'tier2', 'tier3', 'review', 'results']
 // fetched, since it's a fixed unit-conversion factor, not app data.
 export const SQM_TO_SQFT = 10.7639
 
+// Sanity ceiling on GFA input -- there was no upper bound anywhere
+// (client or server), so a fat-fingered extra digit or two (e.g.
+// 999999999999) sailed straight through the whole wizard and produced a
+// "successful" results screen with nonsense numbers like "252,275,725,456.3
+// Tonnes CO2e" and no warning at all. 10,000,000 sqm (~107M sqft) is
+// deliberately generous -- well above even the largest real megaprojects --
+// so it only catches genuine fat-finger/garbage input, never a real project.
+export const MAX_GFA_SQM = 10_000_000
+
 const BLANK_FORM_DATA = {
   project_name: '',
   // gfa_value is whatever's typed, in whichever unit gfa_unit currently
@@ -139,13 +148,17 @@ export function Phase1FormProvider({ children }) {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const isMandatoryValid = () => formData.gfa_value && Number(formData.gfa_value) > 0 && formData.location.trim()
-
   // Converts formData.gfa_value (in whatever unit formData.gfa_unit
   // currently is) to the canonical sqm figure the backend expects.
   const gfaValueToSqm = () => {
     const typed = Number(formData.gfa_value)
     return formData.gfa_unit === 'sqft' ? typed / SQM_TO_SQFT : typed
+  }
+
+  const isMandatoryValid = () => {
+    if (!formData.gfa_value || !formData.location.trim()) return false
+    const sqm = gfaValueToSqm()
+    return Number.isFinite(sqm) && sqm > 0 && sqm <= MAX_GFA_SQM
   }
 
   // Submits the tiered form (Tier 1/2/3 -- whatever's filled so far) and

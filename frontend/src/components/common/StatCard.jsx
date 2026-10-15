@@ -11,18 +11,18 @@ export default function StatCard({
   accent = 'lime',
 }) {
   const accentGlow = {
-    lime: 'rgba(49, 130, 206, 0.08)',
-    mint: 'rgba(49, 130, 206, 0.08)',
-    amber: 'rgba(245, 158, 11, 0.08)',
-    cyan: 'rgba(56, 189, 248, 0.08)',
-  }[accent] || 'rgba(49, 130, 206, 0.08)'
+    lime: 'rgba(var(--c-blue), 0.08)',
+    mint: 'rgba(var(--c-blue), 0.08)',
+    amber: 'rgba(var(--c-amber), 0.08)',
+    cyan: 'rgba(var(--c-cyan), 0.08)',
+  }[accent] || 'rgba(var(--c-blue), 0.08)'
 
   const accentColor = {
-    lime: '#3182CE',
-    mint: '#3182CE',
-    amber: '#fbbf24',
-    cyan: '#38bdf8',
-  }[accent] || '#3182CE'
+    lime: 'var(--accent-lime)',
+    mint: 'var(--accent-lime)',
+    amber: 'var(--accent-amber-light)',
+    cyan: 'var(--accent-cyan)',
+  }[accent] || 'var(--accent-lime)'
 
   return (
     <div
@@ -39,7 +39,7 @@ export default function StatCard({
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
           {title}
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -50,7 +50,7 @@ export default function StatCard({
                 width: 28,
                 height: 28,
                 borderRadius: '8px',
-                background: 'rgba(255, 255, 255, 0.05)',
+                background: 'rgba(var(--c-overlay), 0.05)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -64,18 +64,18 @@ export default function StatCard({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-        <span className="tabular-nums" style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f8fafc', lineHeight: 1.1 }}>
+        <span className="tabular-nums" style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>
           {value}
         </span>
         {unit && (
-          <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#3182CE' }}>
+          <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--accent-lime)' }}>
             {unit}
           </span>
         )}
       </div>
 
       {subtitle && (
-        <span style={{ fontSize: '0.75rem', color: '#64748b', lineHeight: 1.3 }}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.3 }}>
           {subtitle}
         </span>
       )}

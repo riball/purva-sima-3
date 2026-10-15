@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { ProjectProvider, useProject } from './context/ProjectContext'
 import Navbar from './components/common/Navbar'
+import ThemeToggle from './components/common/ThemeToggle'
 import ToastContainer from './components/common/Toast'
 import ProjectsOverview from './components/overview/ProjectsOverview'
 import LandingPage from './components/landing/LandingPage'
@@ -56,6 +57,11 @@ function AppContent() {
         </button>
       </div>
 
+      {/* Floating Theme Toggle (Top Right) -- always visible, independent
+          of the slide-out Navbar, so switching themes doesn't require
+          opening the sidebar first. */}
+      <ThemeToggle />
+
       {/* Floating Sidebar (Navigation) */}
       <Navbar 
         activeTab={activeTab} 
@@ -74,7 +80,7 @@ function AppContent() {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.5)',
+            background: 'rgba(var(--c-black),0.5)',
             zIndex: 998,
             backdropFilter: 'blur(4px)',
           }}
@@ -109,11 +115,11 @@ function AppContent() {
       {activeTab !== 'landing' && (
         <footer
           style={{
-            borderTop: '1px solid rgba(49, 130, 206, 0.1)',
+            borderTop: '1px solid rgba(var(--c-blue), 0.1)',
             padding: '20px 24px',
             textAlign: 'center',
             fontSize: '0.75rem',
-            color: '#64748b',
+            color: 'var(--text-muted)',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -126,7 +132,7 @@ function AppContent() {
             <span>Embodied Carbon Tracking (Phase 1–5)</span>
           </div>
 
-          <span style={{ color: '#475569' }}>
+          <span style={{ color: 'var(--text-dim)' }}>
             Every number is a real recompute against versioned emission factors. Never an LLM guess.
           </span>
         </footer>

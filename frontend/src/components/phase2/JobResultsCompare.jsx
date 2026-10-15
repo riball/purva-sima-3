@@ -6,10 +6,10 @@ import SaveProjectNameModal from '../shared/SaveProjectNameModal'
 import JobCalculationDashboard from './JobCalculationDashboard'
 
 const STATUS_META = {
-  queued: { label: 'Queued', color: '#64748b', icon: Loader2, spin: false },
-  running: { label: 'Calculating...', color: '#f59e0b', icon: Loader2, spin: true },
-  succeeded: { label: 'Done', color: '#3182CE', icon: CheckCircle2, spin: false },
-  failed: { label: 'Failed', color: '#f43f5e', icon: XCircle, spin: false },
+  queued: { label: 'Queued', color: 'var(--text-muted)', icon: Loader2, spin: false },
+  running: { label: 'Calculating...', color: 'var(--accent-amber)', icon: Loader2, spin: true },
+  succeeded: { label: 'Done', color: 'var(--accent-lime)', icon: CheckCircle2, spin: false },
+  failed: { label: 'Failed', color: 'var(--accent-rose)', icon: XCircle, spin: false },
 }
 
 /**
@@ -105,7 +105,7 @@ export default function JobResultsCompare({ jobs }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Recent Uploads</h3>
+      <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Recent Uploads</h3>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
         {jobs.map((job) => {
@@ -118,8 +118,8 @@ export default function JobResultsCompare({ jobs }) {
             <div key={job.job_id} className="glass-panel" style={{ padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {job.kind === 'boq' ? <FileSpreadsheet size={16} color="#3182CE" /> : <FileText size={16} color="#3182CE" />}
-                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc' }}>{job.source_filename}</span>
+                  {job.kind === 'boq' ? <FileSpreadsheet size={16} color="var(--accent-lime)" /> : <FileText size={16} color="var(--accent-lime)" />}
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{job.source_filename}</span>
                 </div>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', fontWeight: 600, color: meta.color }}>
                   <StatusIcon size={13} className={meta.spin ? 'spin' : ''} />
@@ -128,22 +128,22 @@ export default function JobResultsCompare({ jobs }) {
               </div>
 
               {job.status === 'failed' && (
-                <p style={{ fontSize: '0.78rem', color: '#f43f5e', lineHeight: 1.4 }}>{job.error}</p>
+                <p style={{ fontSize: '0.78rem', color: 'var(--accent-rose)', lineHeight: 1.4 }}>{job.error}</p>
               )}
 
               {summary && (
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
                     <div>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Total Carbon</span>
-                      <div className="tabular-nums" style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Carbon</span>
+                      <div className="tabular-nums" style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         {summary.total_gwp_tonnes_co2e?.toLocaleString(undefined, { maximumFractionDigits: 1 })}{' '}
-                        <span style={{ fontSize: '0.7rem', color: '#3182CE' }}>t CO&sub2;e</span>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--accent-lime)' }}>t CO&sub2;e</span>
                       </div>
                     </div>
                     <div>
-                      <span style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase' }}>Coverage</span>
-                      <div className="tabular-nums" style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Coverage</span>
+                      <div className="tabular-nums" style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                         {summary.coverage_pct?.toFixed(1) ?? '-'}%
                       </div>
                     </div>

@@ -175,14 +175,14 @@ export default function Phase3View() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-amber">Phase 3</span>
-            <span style={{ fontSize: '0.8125rem', color: '#fbbf24', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-amber-light)', fontWeight: 600 }}>
               Track Over Time & Assistant
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Cumulative Bill Tracking & "What-If" Chatbot
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
             Measure construction reality against a fixed baseline. Bills are cumulative snapshots to date. Ask the assistant any
             hypothetical question for a real-engine recomputed answer.
           </p>
@@ -215,8 +215,8 @@ export default function Phase3View() {
       {dashboard?.baseline ? (
         <div
           style={{
-            background: 'rgba(12, 22, 16, 0.75)',
-            border: '1px solid rgba(49, 130, 206, 0.16)',
+            background: 'rgba(var(--c-surf-5), 0.75)',
+            border: '1px solid rgba(var(--c-blue), 0.16)',
             borderRadius: 'var(--radius-md)',
             padding: '12px 18px',
             display: 'flex',
@@ -229,16 +229,16 @@ export default function Phase3View() {
             <span className={`badge ${dashboard.baseline.is_estimated ? 'badge-amber' : 'badge-mint'}`}>
               {dashboard.baseline.is_estimated ? 'Estimated Baseline' : `Priced Baseline (${dashboard.baseline.source_type.toUpperCase()})`}
             </span>
-            <span style={{ color: '#f8fafc', fontWeight: 500 }}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
               Baseline: {(dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)} tCO₂e
             </span>
-            <span style={{ color: '#64748b' }}>•</span>
-            <span style={{ color: '#94a3b8' }}>
+            <span style={{ color: 'var(--text-muted)' }}>•</span>
+            <span style={{ color: 'var(--text-tertiary)' }}>
               Recorded {new Date(dashboard.baseline.recorded_at).toLocaleDateString()} from {dashboard.baseline.source_file}
             </span>
           </div>
 
-          <span style={{ fontSize: '0.75rem', color: '#3182CE' }}>
+          <span style={{ fontSize: '0.75rem', color: 'var(--accent-lime)' }}>
             {bills.length} {bills.length === 1 ? 'Period Bill' : 'Period Bills'} Logged
           </span>
         </div>
@@ -254,11 +254,11 @@ export default function Phase3View() {
             gap: 12,
           }}
         >
-          <AlertTriangle size={32} color="#f59e0b" />
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc' }}>
+          <AlertTriangle size={32} color="var(--accent-amber)" />
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             No Fixed Baseline Recorded Yet
           </h3>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 440 }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 440 }}>
             Before you can log cumulative bills and track running carbon, record this project’s initial full-scope baseline.
           </p>
           <button onClick={() => setShowBaselineModal(true)} className="btn-primary" style={{ marginTop: 6 }}>
@@ -325,7 +325,7 @@ export default function Phase3View() {
               {dashboard.benchmark_available && (
                 <div className="glass-panel" style={{ padding: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
                       Typical Building Benchmark
                     </span>
                     <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>
@@ -334,11 +334,11 @@ export default function Phase3View() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                    <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       {dashboard.projected_carbon_per_sqm?.toFixed(1) || '-'}
                     </span>
-                    <span style={{ fontSize: '0.8125rem', color: '#3182CE' }}>kgCO₂e / m²</span>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)' }}>kgCO₂e / m²</span>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       (Typical is {dashboard.typical_carbon_per_sqm?.toFixed(1)} kg/m²)
                     </span>
                   </div>
@@ -347,20 +347,20 @@ export default function Phase3View() {
 
               {/* Time Series Chart + Table */}
               <div className="glass-panel" style={{ padding: 22 }}>
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>
+                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>
                   Cumulative Billing Time Series
                 </h3>
 
                 {dashboard.points && dashboard.points.length > 0 && (
                   <div style={{ marginBottom: 18 }}>
                     <LineChartCarbon points={dashboard.points} baselineTonnes={dashboard.baseline.total_gwp_kg_co2e / 1000} />
-                    <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.72rem', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 14, height: 2, background: '#3182CE', display: 'inline-block', borderRadius: 2 }} />
+                        <span style={{ width: 14, height: 2, background: 'var(--accent-lime)', display: 'inline-block', borderRadius: 2 }} />
                         Billed cumulative
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <span style={{ width: 14, height: 0, borderTop: '2px dashed #f59e0b', display: 'inline-block' }} />
+                        <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--accent-amber)', display: 'inline-block' }} />
                         Baseline
                       </span>
                     </div>
@@ -371,7 +371,7 @@ export default function Phase3View() {
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                       <thead>
-                        <tr style={{ borderBottom: '1px solid rgba(49, 130, 206, 0.15)', color: '#3182CE', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <tr style={{ borderBottom: '1px solid rgba(var(--c-blue), 0.15)', color: 'var(--accent-lime)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           <th style={{ padding: '8px 12px' }}>Period</th>
                           <th style={{ padding: '8px 12px' }}>Billed Date</th>
                           <th style={{ padding: '8px 12px' }}>GWP to Date (tCO₂e)</th>
@@ -381,20 +381,20 @@ export default function Phase3View() {
                       </thead>
                       <tbody>
                         {dashboard.points.map((pt, idx) => (
-                          <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '0.8125rem' }}>
-                            <td style={{ padding: '8px 12px', fontWeight: 600, color: '#f8fafc' }}>
+                          <tr key={idx} style={{ borderBottom: '1px solid rgba(var(--c-overlay), 0.04)', fontSize: '0.8125rem' }}>
+                            <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>
                               {pt.period}
                             </td>
-                            <td style={{ padding: '8px 12px', color: '#94a3b8' }}>
+                            <td style={{ padding: '8px 12px', color: 'var(--text-tertiary)' }}>
                               {pt.billed_date}
                             </td>
-                            <td className="tabular-nums" style={{ padding: '8px 12px', color: '#3182CE', fontWeight: 600 }}>
+                            <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--accent-lime)', fontWeight: 600 }}>
                               {(pt.total_gwp_kg_co2e_to_date / 1000).toFixed(1)}
                             </td>
-                            <td className="tabular-nums" style={{ padding: '8px 12px', color: '#cbd5e1' }}>
+                            <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>
                               ₹{(pt.total_value_to_date / 100000).toFixed(1)}L
                             </td>
-                            <td className="tabular-nums" style={{ padding: '8px 12px', color: '#3182CE' }}>
+                            <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--accent-lime)' }}>
                               {pt.stated_percent_complete ? `${pt.stated_percent_complete.toFixed(1)}%` : '-'}
                             </td>
                           </tr>
@@ -403,7 +403,7 @@ export default function Phase3View() {
                     </table>
                   </div>
                 ) : (
-                  <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
                     No periodic bills logged yet. Click "Log Period Bill" above to record the first period snapshot.
                   </p>
                 )}
@@ -420,31 +420,31 @@ export default function Phase3View() {
             display: 'flex',
             flexDirection: 'column',
             height: '680px',
-            background: 'rgba(12, 22, 15, 0.95)',
+            background: 'rgba(var(--c-surf-5), 0.95)',
           }}
         >
           {/* Chat Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(49, 130, 206, 0.12)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid rgba(var(--c-blue), 0.12)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div
                 style={{
                   width: 32,
                   height: 32,
                   borderRadius: '50%',
-                  background: 'rgba(49, 130, 206, 0.15)',
+                  background: 'rgba(var(--c-blue), 0.15)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#3182CE',
+                  color: 'var(--accent-lime)',
                 }}
               >
                 <Sparkles size={16} />
               </div>
               <div>
-                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   Analyzer Assistant
                 </h4>
-                <span style={{ fontSize: '0.7rem', color: '#3182CE' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent-lime)' }}>
                   Deterministic recomputes • Never a guessed delta
                 </span>
               </div>
@@ -462,22 +462,22 @@ export default function Phase3View() {
                 key={toolName}
                 onClick={() => handleSendChat(info.example_question)}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(49, 130, 206, 0.18)',
+                  background: 'rgba(var(--c-overlay), 0.04)',
+                  border: '1px solid rgba(var(--c-blue), 0.18)',
                   borderRadius: 'var(--radius-full)',
                   padding: '4px 10px',
                   fontSize: '0.7rem',
-                  color: '#cbd5e1',
+                  color: 'var(--text-secondary)',
                   cursor: 'pointer',
                   transition: 'all var(--transition-fast)',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = 'var(--accent-lime)'
-                  e.currentTarget.style.color = '#3182CE'
+                  e.currentTarget.style.color = 'var(--accent-lime)'
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(49, 130, 206, 0.18)'
-                  e.currentTarget.style.color = '#cbd5e1'
+                  e.currentTarget.style.borderColor = 'rgba(var(--c-blue), 0.18)'
+                  e.currentTarget.style.color = 'var(--text-secondary)'
                 }}
               >
                 {info.example_question}
@@ -498,10 +498,10 @@ export default function Phase3View() {
             }}
           >
             {chatMessages.length === 0 ? (
-              <div style={{ margin: 'auto', textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>
+              <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
                 Ask questions like:<br />
-                <strong style={{ color: '#3182CE' }}>"What if I use M40 instead of M30?"</strong> or<br />
-                <strong style={{ color: '#3182CE' }}>"How much carbon does steel contribute?"</strong>
+                <strong style={{ color: 'var(--accent-lime)' }}>"What if I use M40 instead of M30?"</strong> or<br />
+                <strong style={{ color: 'var(--accent-lime)' }}>"How much carbon does steel contribute?"</strong>
               </div>
             ) : (
               chatMessages.map((msg) => {
@@ -513,11 +513,11 @@ export default function Phase3View() {
                     style={{
                       alignSelf: isUser ? 'flex-end' : 'flex-start',
                       maxWidth: '85%',
-                      background: isUser ? 'rgba(49, 130, 206, 0.14)' : 'rgba(18, 30, 22, 0.9)',
-                      border: `1px solid ${isUser ? 'rgba(49, 130, 206, 0.3)' : 'rgba(49, 130, 206, 0.15)'}`,
+                      background: isUser ? 'rgba(var(--c-blue), 0.14)' : 'rgba(var(--c-surf-4), 0.9)',
+                      border: `1px solid ${isUser ? 'rgba(var(--c-blue), 0.3)' : 'rgba(var(--c-blue), 0.15)'}`,
                       borderRadius: 'var(--radius-md)',
                       padding: '10px 14px',
-                      color: '#f8fafc',
+                      color: 'var(--text-primary)',
                       fontSize: '0.8125rem',
                       lineHeight: 1.45,
                     }}
@@ -532,7 +532,7 @@ export default function Phase3View() {
                             <span className="badge badge-mint" style={{ fontSize: '0.65rem' }}>
                               Tool: {msg.data.tool_call.tool}
                             </span>
-                            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                               Parsed via {msg.data.tool_call.parse_source}
                             </span>
                           </div>
@@ -547,11 +547,11 @@ export default function Phase3View() {
                             style={{
                               marginTop: 6,
                               paddingTop: 6,
-                              borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                              borderTop: '1px solid rgba(var(--c-overlay), 0.06)',
                               display: 'flex',
                               justifyContent: 'space-between',
                               fontSize: '0.75rem',
-                              color: '#3182CE',
+                              color: 'var(--accent-lime)',
                               fontWeight: 600,
                             }}
                           >
@@ -606,7 +606,7 @@ export default function Phase3View() {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(var(--c-black), 0.75)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -615,10 +615,10 @@ export default function Phase3View() {
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               Set Project Baseline
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               This recorded baseline serves as the permanent benchmark point every subsequent periodic bill is measured against.
             </p>
 
@@ -639,11 +639,11 @@ export default function Phase3View() {
               {baselineSourceType !== 'phase1_estimate' && (
                 <div
                   style={{
-                    border: '2px dashed rgba(49, 130, 206, 0.25)',
+                    border: '2px dashed rgba(var(--c-blue), 0.25)',
                     borderRadius: 'var(--radius-md)',
                     padding: 20,
                     textAlign: 'center',
-                    background: 'rgba(9, 16, 11, 0.6)',
+                    background: 'rgba(var(--c-surf-1), 0.6)',
                   }}
                 >
                   <input
@@ -658,7 +658,7 @@ export default function Phase3View() {
                     style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
                   >
                     <Upload size={20} color="var(--accent-lime)" />
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#f8fafc' }}>
+                    <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                       {baselineFile ? baselineFile.name : `Select ${baselineSourceType.toUpperCase()} file`}
                     </span>
                   </label>
@@ -690,7 +690,7 @@ export default function Phase3View() {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(var(--c-black), 0.75)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -699,10 +699,10 @@ export default function Phase3View() {
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               Log Cumulative Billing Period
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               Each bill represents cumulative progress to date. It is evaluated against the baseline, never summed across periods.
             </p>
 
@@ -750,11 +750,11 @@ export default function Phase3View() {
 
               <div
                 style={{
-                  border: '2px dashed rgba(49, 130, 206, 0.25)',
+                  border: '2px dashed rgba(var(--c-blue), 0.25)',
                   borderRadius: 'var(--radius-md)',
                   padding: 20,
                   textAlign: 'center',
-                  background: 'rgba(9, 16, 11, 0.6)',
+                  background: 'rgba(var(--c-surf-1), 0.6)',
                 }}
               >
                 <input
@@ -769,7 +769,7 @@ export default function Phase3View() {
                   style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
                 >
                   <Upload size={20} color="var(--accent-lime)" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {billFile ? billFile.name : 'Select Bill Document (.xlsx or .pdf)'}
                   </span>
                 </label>

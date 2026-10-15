@@ -56,19 +56,19 @@ export default function ProjectSwitcher() {
           gap: 10,
           padding: '10px 14px',
           cursor: 'pointer',
-          border: '1px solid rgba(49, 130, 206, 0.25)',
+          border: '1px solid rgba(var(--c-blue), 0.25)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, overflow: 'hidden' }}>
-          <Building2 size={16} color="#3182CE" style={{ flexShrink: 0 }} />
+          <Building2 size={16} color="var(--accent-lime)" style={{ flexShrink: 0 }} />
           <div style={{ textAlign: 'left', overflow: 'hidden' }}>
-            <div style={{ fontSize: '0.68rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</div>
-            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Project</div>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {current?.project_name || 'Select a project'}
             </div>
           </div>
         </div>
-        <ChevronDown size={16} color="#64748b" style={{ flexShrink: 0 }} />
+        <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
       </button>
 
       {isOpen && (
@@ -90,7 +90,7 @@ export default function ProjectSwitcher() {
             // Matches Toast.jsx's proven opaque-override pattern instead of
             // touching the shared --glass-bg-elevated variable, which is
             // fine for real modals elsewhere in the app.
-            background: 'rgba(9, 20, 14, 0.97)',
+            background: 'rgba(var(--c-surf-7), 0.97)',
             // Post-delivery correction #1 (insufficient on its own): this
             // used to ALSO carry backdropFilter: blur(24px) -- removed,
             // see below for why that wasn't actually the cause.
@@ -118,7 +118,7 @@ export default function ProjectSwitcher() {
           }}
         >
           <div style={{ position: 'relative', marginBottom: 8 }}>
-            <Search size={13} color="#64748b" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <Search size={13} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
             <input
               autoFocus
               type="text"
@@ -135,7 +135,7 @@ export default function ProjectSwitcher() {
             />
           </div>
           {results.length === 0 ? (
-            <div style={{ padding: '14px 8px', textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>No projects found</div>
+            <div style={{ padding: '14px 8px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>No projects found</div>
           ) : (
             results.map((p) => (
               <button
@@ -151,15 +151,15 @@ export default function ProjectSwitcher() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '9px 10px',
-                  background: p.project_id === activeProjectId ? 'rgba(49, 130, 206, 0.12)' : 'transparent',
+                  background: p.project_id === activeProjectId ? 'rgba(var(--c-blue), 0.12)' : 'transparent',
                   border: 'none',
                   borderRadius: 'var(--radius-sm)',
                   cursor: 'pointer',
                   textAlign: 'left',
                 }}
               >
-                <span style={{ fontSize: '0.8125rem', color: '#f8fafc', fontWeight: 500 }}>{p.project_name}</span>
-                {p.project_id === activeProjectId && <Check size={14} color="#3182CE" />}
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 500 }}>{p.project_name}</span>
+                {p.project_id === activeProjectId && <Check size={14} color="var(--accent-lime)" />}
               </button>
             ))
           )}

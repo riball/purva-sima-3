@@ -11,8 +11,8 @@ export default function RadialGauge({
   label = '',
   sublabel = '',
   valueText = null,
-  color = '#3182CE',
-  trackColor = 'rgba(49, 130, 206, 0.1)',
+  color = 'var(--accent-lime)',
+  trackColor = 'rgba(var(--c-blue), 0.1)',
 }) {
   const clamped = Math.min(100, Math.max(0, percentage))
   const radius = (size - strokeWidth) / 2
@@ -64,17 +64,17 @@ export default function RadialGauge({
           pointerEvents: 'none',
         }}
       >
-        <span className="tabular-nums" style={{ fontSize: size * 0.22, fontWeight: 700, color: '#f8fafc', lineHeight: 1 }}>
+        <span className="tabular-nums" style={{ fontSize: size * 0.22, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>
           {valueText !== null ? valueText : `${clamped.toFixed(0)}%`}
         </span>
         {sublabel && (
-          <span style={{ fontSize: size * 0.09, color: '#3182CE', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4, fontWeight: 600 }}>
+          <span style={{ fontSize: size * 0.09, color: 'var(--accent-lime)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4, fontWeight: 600 }}>
             {sublabel}
           </span>
         )}
       </div>
       {label && (
-        <span style={{ marginTop: 8, fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>
+        <span style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 500 }}>
           {label}
         </span>
       )}

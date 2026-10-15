@@ -207,8 +207,8 @@ export default function Phase1View() {
     const currentValue = reviewFields[path] !== undefined ? reviewFields[path] : fieldObj.value ?? ''
 
     return (
-      <tr key={path} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-        <td style={{ padding: '10px 14px', fontSize: '0.8125rem', color: '#f8fafc', fontWeight: 500 }}>
+      <tr key={path} style={{ borderBottom: '1px solid rgba(var(--c-overlay), 0.05)' }}>
+        <td style={{ padding: '10px 14px', fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 500 }}>
           {label}
         </td>
         <td style={{ padding: '10px 14px' }}>
@@ -226,7 +226,7 @@ export default function Phase1View() {
             style={{
               padding: '6px 10px',
               fontSize: '0.8125rem',
-              borderColor: reviewFields[path] !== undefined ? 'var(--accent-lime)' : 'rgba(49, 130, 206, 0.2)',
+              borderColor: reviewFields[path] !== undefined ? 'var(--accent-lime)' : 'rgba(var(--c-blue), 0.2)',
             }}
           />
         </td>
@@ -250,14 +250,14 @@ export default function Phase1View() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-lime">Phase 1</span>
-            <span style={{ fontSize: '0.8125rem', color: '#3182CE', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
               Estimate Early
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Tiered Conceptual Carbon Estimator
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
             Fill in what you know; the system fills the gaps from company project history, then an LLM engineering estimate.
             Every estimated field is tagged honestly so you can review and override it.
           </p>
@@ -293,7 +293,7 @@ export default function Phase1View() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Intake Form */}
           <form onSubmit={handleSubmitForm} className="glass-panel" style={{ padding: 24 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 16 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
               Project Specification
             </h3>
 
@@ -310,10 +310,10 @@ export default function Phase1View() {
             </div>
 
             {/* Tier 1: Mandatory Basics */}
-            <div style={{ background: 'rgba(10, 18, 12, 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(49, 130, 206, 0.14)', marginBottom: 16 }}>
+            <div style={{ background: 'rgba(var(--c-surf-2), 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(var(--c-blue), 0.14)', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <span className="badge badge-lime" style={{ fontSize: '0.65rem' }}>Tier 1 · Mandatory</span>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Core geometric anchors</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Core geometric anchors</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -363,10 +363,10 @@ export default function Phase1View() {
             </div>
 
             {/* Tier 2: Building Typology & Substructure */}
-            <div style={{ background: 'rgba(10, 18, 12, 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(49, 130, 206, 0.14)', marginBottom: 16 }}>
+            <div style={{ background: 'rgba(var(--c-surf-2), 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(var(--c-blue), 0.14)', marginBottom: 16 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <span className="badge badge-mint" style={{ fontSize: '0.65rem' }}>Tier 2 · Typology & Substructure</span>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Estimated if left blank</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Estimated if left blank</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -425,10 +425,10 @@ export default function Phase1View() {
             </div>
 
             {/* Tier 3: Material Specifications */}
-            <div style={{ background: 'rgba(10, 18, 12, 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(49, 130, 206, 0.14)', marginBottom: 20 }}>
+            <div style={{ background: 'rgba(var(--c-surf-2), 0.6)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid rgba(var(--c-blue), 0.14)', marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>Tier 3 · Materials</span>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>IFC India anchor keys</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>IFC India anchor keys</span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
@@ -507,10 +507,10 @@ export default function Phase1View() {
             <div className="glass-panel" style={{ padding: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
-                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+                  <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     Review Estimated Fields & Provenance
                   </h3>
-                  <p style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
                     Every field's origin is tracked. Overwriting unconditionally marks it as user-entered (100% confidence).
                   </p>
                 </div>
@@ -530,7 +530,7 @@ export default function Phase1View() {
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(49, 130, 206, 0.15)', color: '#3182CE', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    <tr style={{ borderBottom: '1px solid rgba(var(--c-blue), 0.15)', color: 'var(--accent-lime)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       <th style={{ padding: '8px 14px' }}>Field</th>
                       <th style={{ padding: '8px 14px' }}>Source & Confidence</th>
                       <th style={{ padding: '8px 14px' }}>Value (Editable)</th>
@@ -562,47 +562,47 @@ export default function Phase1View() {
                 className="glass-panel-elevated"
                 style={{
                   padding: '28px 30px',
-                  background: 'radial-gradient(circle at top right, rgba(49, 130, 206, 0.12) 0%, rgba(16, 28, 20, 0.95) 70%)',
-                  border: '1px solid rgba(49, 130, 206, 0.3)',
+                  background: 'radial-gradient(circle at top right, rgba(var(--c-blue), 0.12) 0%, rgba(var(--c-surf-3), 0.95) 70%)',
+                  border: '1px solid rgba(var(--c-blue), 0.3)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <span className="badge badge-lime">Calculated Carbon Baseline</span>
-                  <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                     IFC India Database (CEA Grid Adjusted)
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-                  <span className="tabular-nums" style={{ fontSize: '2.5rem', fontWeight: 800, color: '#f8fafc', lineHeight: 1 }}>
+                  <span className="tabular-nums" style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
                     {calculationResult.carbon.total_carbon_tonnes.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                   </span>
-                  <span style={{ fontSize: '1.125rem', fontWeight: 600, color: '#3182CE' }}>
+                  <span style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--accent-lime)' }}>
                     Tonnes CO₂e
                   </span>
                 </div>
 
                 {/* Per Area Metric Pill Row */}
-                <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ display: 'flex', gap: 16, marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(var(--c-overlay), 0.08)' }}>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Carbon Intensity / m²
                     </span>
-                    <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+                    <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       {calculationResult.carbon.carbon_per_sqm.toFixed(1)}{' '}
-                      <span style={{ fontSize: '0.75rem', color: '#3182CE', fontWeight: 500 }}>kgCO₂e/m²</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent-lime)', fontWeight: 500 }}>kgCO₂e/m²</span>
                     </div>
                   </div>
 
-                  <div style={{ width: 1, background: 'rgba(255, 255, 255, 0.08)' }} />
+                  <div style={{ width: 1, background: 'rgba(var(--c-overlay), 0.08)' }} />
 
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       Carbon Intensity / sqft
                     </span>
-                    <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+                    <div className="tabular-nums" style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                       {calculationResult.carbon.carbon_per_sqft.toFixed(1)}{' '}
-                      <span style={{ fontSize: '0.75rem', color: '#3182CE', fontWeight: 500 }}>kgCO₂e/sqft</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--accent-lime)', fontWeight: 500 }}>kgCO₂e/sqft</span>
                     </div>
                   </div>
                 </div>
@@ -610,7 +610,7 @@ export default function Phase1View() {
 
               {/* Material Breakdown */}
               <div className="glass-panel" style={{ padding: 22 }}>
-                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>
+                <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>
                   Material GWP Breakdown
                 </h4>
 
@@ -621,14 +621,14 @@ export default function Phase1View() {
                       <div
                         key={idx}
                         style={{
-                          background: 'rgba(10, 18, 12, 0.6)',
+                          background: 'rgba(var(--c-surf-2), 0.6)',
                           padding: 14,
                           borderRadius: 'var(--radius-md)',
-                          border: '1px solid rgba(49, 130, 206, 0.1)',
+                          border: '1px solid rgba(var(--c-blue), 0.1)',
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#f8fafc' }}>
+                          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                             {item.material}
                           </span>
                           <span className="tabular-nums badge badge-mint">
@@ -636,24 +636,24 @@ export default function Phase1View() {
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#94a3b8' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
                           <span>
                             Quantity:{' '}
-                            <strong style={{ color: '#f8fafc' }}>
+                            <strong style={{ color: 'var(--text-primary)' }}>
                               {item.quantity.toLocaleString(undefined, { maximumFractionDigits: 1 })} {item.quantity_unit}
                             </strong>
                           </span>
                           <span>
                             Emission Factor:{' '}
-                            <strong style={{ color: '#3182CE' }}>
+                            <strong style={{ color: 'var(--accent-lime)' }}>
                               {item.factor_used.toFixed(3)} {item.factor_unit}
                             </strong>
                           </span>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255, 255, 255, 0.05)', fontSize: '0.8125rem' }}>
-                          <span style={{ color: '#64748b' }}>Total Carbon:</span>
-                          <span className="tabular-nums" style={{ fontWeight: 700, color: '#f8fafc' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(var(--c-overlay), 0.05)', fontSize: '0.8125rem' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>Total Carbon:</span>
+                          <span className="tabular-nums" style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                             {(item.carbon_kg / 1000).toFixed(1)} Tonnes CO₂e
                           </span>
                         </div>
@@ -670,13 +670,13 @@ export default function Phase1View() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>GRIHA-Style Benchmark</span>
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {Math.abs(calculationResult.benchmark.pct_difference_from_baseline).toFixed(1)}%{' '}
-                    <span style={{ fontSize: '0.8125rem', color: calculationResult.benchmark.pct_difference_from_baseline <= 0 ? '#3182CE' : '#f43f5e' }}>
+                    <span style={{ fontSize: '0.8125rem', color: calculationResult.benchmark.pct_difference_from_baseline <= 0 ? 'var(--accent-lime)' : 'var(--accent-rose)' }}>
                       {calculationResult.benchmark.pct_difference_from_baseline <= 0 ? 'better than typical' : 'above typical'}
                     </span>
                   </div>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', marginTop: 4 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
                     Typical {calculationResult.benchmark.floor_band_used}: {calculationResult.benchmark.baseline_carbon_per_sqm.toFixed(1)} kg/m²
                   </span>
                 </div>
@@ -686,10 +686,10 @@ export default function Phase1View() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
                     <span className="badge badge-lime" style={{ fontSize: '0.65rem' }}>GRIHA V6.0 Criterion 21</span>
                   </div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#3182CE' }}>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-lime)' }}>
                     {calculationResult.griha_criterion_21.points_estimated} / {calculationResult.griha_criterion_21.max_points} Points
                   </div>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b', display: 'block', marginTop: 4 }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
                     {calculationResult.griha_criterion_21.pct_reduction.toFixed(1)}% GWP reduction vs OPC baseline
                   </span>
                 </div>
@@ -698,7 +698,7 @@ export default function Phase1View() {
               {/* Cost Estimate with Inflation Note */}
               <div className="glass-panel" style={{ padding: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
                     Structural Cost Estimate
                   </span>
                   <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
@@ -707,14 +707,14 @@ export default function Phase1View() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span className="tabular-nums" style={{ fontSize: '1.75rem', fontWeight: 700, color: '#f8fafc' }}>
+                  <span className="tabular-nums" style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     ₹{(calculationResult.cost.total_cost_inr / 10000000).toFixed(2)}
                   </span>
-                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#fbbf24' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--accent-amber-light)' }}>
                     Crores INR
                   </span>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginTop: 4 }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
                   ₹{calculationResult.cost.cost_per_sqm_inr.toFixed(0)} / m² (Concrete & Steel scope only)
                 </span>
               </div>
@@ -729,11 +729,11 @@ export default function Phase1View() {
                 flexDirection: 'column',
                 alignItems: 'center',
                 gap: 14,
-                color: '#94a3b8',
+                color: 'var(--text-tertiary)',
               }}
             >
               <Calculator size={36} color="var(--accent-lime)" />
-              <h4 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#f8fafc' }}>
+              <h4 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 Awaiting Estimate Parameters
               </h4>
               <p style={{ fontSize: '0.875rem', maxWidth: 360, lineHeight: 1.5 }}>
@@ -751,7 +751,7 @@ export default function Phase1View() {
             position: 'fixed',
             inset: 0,
             zIndex: 2000,
-            background: 'rgba(0, 0, 0, 0.75)',
+            background: 'rgba(var(--c-black), 0.75)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
@@ -760,22 +760,22 @@ export default function Phase1View() {
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
               Refine Project with Real BOQ
             </h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               Upload this project's actual `.xlsx` Bill of Quantities. It extracts real quantities and updates fields with{' '}
-              <strong style={{ color: '#3182CE' }}>own-boq-extracted (90% confidence)</strong>, outranking earlier reference-matched estimates.
+              <strong style={{ color: 'var(--accent-lime)' }}>own-boq-extracted (90% confidence)</strong>, outranking earlier reference-matched estimates.
             </p>
 
             <form onSubmit={handleRefineSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div
                 style={{
-                  border: '2px dashed rgba(49, 130, 206, 0.25)',
+                  border: '2px dashed rgba(var(--c-blue), 0.25)',
                   borderRadius: 'var(--radius-md)',
                   padding: 24,
                   textAlign: 'center',
-                  background: 'rgba(9, 16, 11, 0.6)',
+                  background: 'rgba(var(--c-surf-1), 0.6)',
                 }}
               >
                 <input
@@ -790,10 +790,10 @@ export default function Phase1View() {
                   style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
                 >
                   <Upload size={24} color="var(--accent-lime)" />
-                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {refineFile ? refineFile.name : 'Click to select Excel BOQ (.xlsx)'}
                   </span>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                     Only non-supplementary primary sheets are processed
                   </span>
                 </label>

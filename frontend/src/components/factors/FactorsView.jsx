@@ -68,14 +68,14 @@ export default function FactorsView() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <span className="badge badge-cyan">Governance & Data</span>
-            <span style={{ fontSize: '0.8125rem', color: '#38bdf8', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
               Versioned Emission Factors
             </span>
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Single Canonical Emission-Factor Database
           </h2>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8' }}>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
             IFC India (2017) primary source, adjusted to India’s Central Electricity Authority (CEA) grid cleanliness.
             Both BOQ and Work Order pipelines read from this same single source of truth.
           </p>
@@ -93,12 +93,12 @@ export default function FactorsView() {
         {/* Left Column: Factor Explorer */}
         <div className="glass-panel" style={{ padding: 24 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               Canonical Material Factors
             </h3>
 
             <div style={{ position: 'relative' }}>
-              <Search size={14} color="#64748b" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+              <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
                 placeholder="Search category or source..."
@@ -121,8 +121,8 @@ export default function FactorsView() {
                   key={catKey}
                   onClick={() => setSelectedCategory(catKey)}
                   style={{
-                    background: isSelected ? 'rgba(49, 130, 206, 0.12)' : 'rgba(10, 18, 12, 0.65)',
-                    border: `1px solid ${isSelected ? 'var(--accent-lime)' : 'rgba(49, 130, 206, 0.12)'}`,
+                    background: isSelected ? 'rgba(var(--c-blue), 0.12)' : 'rgba(var(--c-surf-2), 0.65)',
+                    border: `1px solid ${isSelected ? 'var(--accent-lime)' : 'rgba(var(--c-blue), 0.12)'}`,
                     borderRadius: 'var(--radius-md)',
                     padding: '12px 16px',
                     cursor: 'pointer',
@@ -130,7 +130,7 @@ export default function FactorsView() {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#f8fafc', textTransform: 'capitalize' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
                       {catKey.replace(/_/g, ' ')}
                     </span>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -146,12 +146,12 @@ export default function FactorsView() {
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
-                    <span className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: '#3182CE' }}>
+                    <span className="tabular-nums" style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--accent-lime)' }}>
                       {data.ef_kgco2e_per_kg?.toFixed(4)}{' '}
-                      <span style={{ fontSize: '0.72rem', color: '#3182CE' }}>kgCO₂e / kg</span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--accent-lime)' }}>kgCO₂e / kg</span>
                     </span>
 
-                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {data.ef_source}
                     </span>
                   </div>
@@ -168,35 +168,35 @@ export default function FactorsView() {
             <div className="glass-panel" style={{ padding: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <span className="badge badge-lime">Material Detail</span>
-                <span style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                   KEY: {selectedCategory}
                 </span>
               </div>
 
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc', marginBottom: 14, textTransform: 'capitalize' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 14, textTransform: 'capitalize' }}>
                 {selectedCategory.replace(/_/g, ' ')}
               </h3>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ background: 'rgba(9, 16, 11, 0.7)', padding: 12, borderRadius: 'var(--radius-sm)' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#3182CE', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ background: 'rgba(var(--c-surf-1), 0.7)', padding: 12, borderRadius: 'var(--radius-sm)' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-lime)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Emission Factor & Unit Note
                   </span>
-                  <div className="tabular-nums" style={{ fontSize: '1.375rem', fontWeight: 700, color: '#3182CE', marginTop: 2 }}>
+                  <div className="tabular-nums" style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--accent-lime)', marginTop: 2 }}>
                     {factorsSnapshot[selectedCategory].ef_kgco2e_per_kg} kgCO₂e/kg
                   </div>
                   {factorsSnapshot[selectedCategory].unit_note && (
-                    <p style={{ fontSize: '0.75rem', color: '#cbd5e1', marginTop: 6, lineHeight: 1.4 }}>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>
                       {factorsSnapshot[selectedCategory].unit_note}
                     </p>
                   )}
                 </div>
 
                 <div>
-                  <span style={{ fontSize: '0.72rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Primary Source & Methodology
                   </span>
-                  <p style={{ fontSize: '0.8125rem', color: '#f8fafc', marginTop: 4, lineHeight: 1.45 }}>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginTop: 4, lineHeight: 1.45 }}>
                     {factorsSnapshot[selectedCategory].ef_source}
                   </p>
                 </div>
@@ -204,12 +204,12 @@ export default function FactorsView() {
                 {factorsSnapshot[selectedCategory]._reconciliation && (
                   <div
                     style={{
-                      background: 'rgba(56, 189, 248, 0.08)',
-                      border: '1px solid rgba(56, 189, 248, 0.2)',
+                      background: 'rgba(var(--c-cyan), 0.08)',
+                      border: '1px solid rgba(var(--c-cyan), 0.2)',
                       borderRadius: 'var(--radius-sm)',
                       padding: 10,
                       fontSize: '0.75rem',
-                      color: '#7dd3fc',
+                      color: 'var(--accent-skyblue)',
                       lineHeight: 1.4,
                     }}
                   >
@@ -223,14 +223,14 @@ export default function FactorsView() {
           {/* Historical Revisions Log */}
           <div className="glass-panel" style={{ padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <History size={16} color="#38bdf8" />
-              <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>
+              <History size={16} color="var(--accent-cyan)" />
+              <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Revision History for {selectedCategory}
               </h4>
             </div>
 
             {categoryHistory.length === 0 ? (
-              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                 No prior revisions recorded. Currently active factor is the initial anchored baseline.
               </p>
             ) : (
@@ -239,19 +239,19 @@ export default function FactorsView() {
                   <div
                     key={idx}
                     style={{
-                      background: 'rgba(9, 16, 11, 0.65)',
+                      background: 'rgba(var(--c-surf-1), 0.65)',
                       padding: 12,
                       borderRadius: 'var(--radius-sm)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      border: '1px solid rgba(var(--c-overlay), 0.06)',
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#94a3b8', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-tertiary)', marginBottom: 4 }}>
                       <span>Valid: {hist.valid_from} {hist.valid_to ? `to ${hist.valid_to}` : '(Current)'}</span>
-                      <span className="tabular-nums" style={{ fontWeight: 600, color: '#3182CE' }}>
+                      <span className="tabular-nums" style={{ fontWeight: 600, color: 'var(--accent-lime)' }}>
                         {hist.value.ef_kgco2e_per_kg} kgCO₂e/kg
                       </span>
                     </div>
-                    <p style={{ fontSize: '0.75rem', color: '#cbd5e1', lineHeight: 1.3 }}>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
                       {hist.changelog_note}
                     </p>
                   </div>

@@ -35,18 +35,18 @@ export default function ToastContainer() {
               gap: 12,
               padding: '12px 18px',
               borderRadius: 'var(--radius-md)',
-              background: 'rgba(14, 25, 18, 0.95)',
+              background: 'rgba(var(--c-surf-3), 0.95)',
               backdropFilter: 'blur(16px)',
-              border: `1px solid ${isSuccess ? 'rgba(49, 130, 206, 0.4)' : isError ? 'rgba(244, 63, 94, 0.4)' : 'rgba(49, 130, 206, 0.3)'}`,
-              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6)',
-              color: '#f8fafc',
+              border: `1px solid ${isSuccess ? 'rgba(var(--c-blue), 0.4)' : isError ? 'rgba(var(--c-rose), 0.4)' : 'rgba(var(--c-blue), 0.3)'}`,
+              boxShadow: '0 12px 32px rgba(var(--c-black), 0.6)',
+              color: 'var(--text-primary)',
               fontSize: '0.875rem',
               maxWidth: 420,
             }}
           >
-            {isSuccess && <CheckCircle2 size={18} color="#3182CE" />}
-            {isError && <AlertCircle size={18} color="#f43f5e" />}
-            {!isSuccess && !isError && <Info size={18} color="#38bdf8" />}
+            {isSuccess && <CheckCircle2 size={18} color="var(--accent-lime)" />}
+            {isError && <AlertCircle size={18} color="var(--accent-rose)" />}
+            {!isSuccess && !isError && <Info size={18} color="var(--accent-cyan)" />}
 
             <span style={{ flex: 1, lineHeight: 1.4 }}>{toast.message}</span>
 
@@ -57,10 +57,10 @@ export default function ToastContainer() {
                   removeToast(toast.id)
                 }}
                 style={{
-                  background: 'rgba(49, 130, 206, 0.15)',
-                  border: '1px solid rgba(49, 130, 206, 0.35)',
+                  background: 'rgba(var(--c-blue), 0.15)',
+                  border: '1px solid rgba(var(--c-blue), 0.35)',
                   borderRadius: 'var(--radius-sm)',
-                  color: '#3182CE',
+                  color: 'var(--accent-lime)',
                   fontSize: '0.75rem',
                   fontWeight: 600,
                   padding: '4px 10px',
@@ -77,7 +77,7 @@ export default function ToastContainer() {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#64748b',
+                color: 'var(--text-muted)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',

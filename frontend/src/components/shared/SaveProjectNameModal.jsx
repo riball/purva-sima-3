@@ -58,7 +58,7 @@ export default function SaveProjectNameModal({ isOpen, onClose, projectId = null
         position: 'fixed',
         inset: 0,
         zIndex: 2100,
-        background: 'rgba(0, 0, 0, 0.75)',
+        background: 'rgba(var(--c-black), 0.75)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -74,11 +74,11 @@ export default function SaveProjectNameModal({ isOpen, onClose, projectId = null
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
           <Tag size={18} color="var(--accent-lime)" />
-          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             {projectId ? 'Rename Project' : 'Save Project'}
           </h3>
         </div>
-        <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 16 }}>
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 16 }}>
           {projectId
             ? 'Give this project a clearer name -- it updates everywhere this project is referenced.'
             : "Tag this with a name so you can find it again from the Projects menu, the chat bar, or any phase."}

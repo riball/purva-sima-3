@@ -3,8 +3,8 @@ import { Clock, Plus, AlertTriangle, Upload, FileText, BarChart3, TrendingUp, Tr
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import StatCard from '../common/StatCard'
-import CategoryBarChart from '../common/charts/CategoryBarChart'
-import ZoomableCarbonChart from '../charts/ZoomableCarbonChart'
+import MaterialBreakdownChart from '../common/charts/MaterialBreakdownChart'
+import CarbonDataExplorer from '../charts/CarbonDataExplorer'
 import ProjectSwitcher from './ProjectSwitcher'
 import ChatBar from './ChatBar'
 
@@ -27,9 +27,10 @@ import ChatBar from './ChatBar'
  *    pick the right screen first.
  *  - The bills table is unified with a source badge per row (Excel BOQ
  *    vs COP PDF), matching what Phase 5 already showed.
- *  - The old fixed-viewport line chart is replaced with
- *    ZoomableCarbonChart (Recharts + a Brush control), so bills can be
- *    read like a stock chart -- zoom into any date range, zoom back out.
+ *  - The old fixed-viewport line chart is replaced with a zoomable,
+ *    user-configurable chart (Recharts + a Brush control -- see
+ *    CarbonDataExplorer), so bills can be read like a stock chart --
+ *    zoom into any date range, zoom back out.
  *  - The chat panel moves from a side column into a sticky bar pinned to
  *    the bottom of the page, per the "keep the chat bar at the bottom"
  *    request.
@@ -340,13 +341,14 @@ export default function TrackingChatHub() {
         projectedVsBaselinePct: dashboard.projected_vs_baseline_pct,
       }
     : null
-  const latestBill = bills.length > 0 ? bills[bills.length - 1] : null
 
-  // UX refinement: cumulative-basis and present-basis points now go to
-  // two genuinely separate charts (see ZoomableCarbonChart's own
-  // docstring) instead of being overlaid on one shared axis. A point
-  // with no quantity_basis recorded at all (an xlsx_boq bill, or any
-  // bill saved before this option existed) was always cumulative by
+  // UX refinement (Phase G): cumulative-basis and present-basis points are
+  // split here, then handed to CarbonDataExplorer as two separate metric
+  // series the user can independently show/hide and chart-type -- see
+  // that component's own docstring for why they can now share one x-axis
+  // without repeating the old "shared y-axis crushes present" mistake. A
+  // point with no quantity_basis recorded at all (an xlsx_boq bill, or
+  // any bill saved before this option existed) was always cumulative by
   // construction -- same convention compute_dashboard() already uses.
   const dashboardPoints = dashboard?.points || []
   const cumulativePoints = dashboardPoints.filter((p) => p.quantity_basis !== 'present')
@@ -384,7 +386,7 @@ export default function TrackingChatHub() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
               <span className="badge badge-amber">Tracking & Chat</span>
             </div>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', maxWidth: 480 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', maxWidth: 480 }}>
               Every bill you upload here is measured against this project's fixed baseline. Ask the assistant anything about it below.
             </p>
           </div>
@@ -419,17 +421,17 @@ export default function TrackingChatHub() {
 
       {!activeProjectId ? (
         <div className="glass-panel" style={{ padding: 36, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <AlertTriangle size={28} color="#f59e0b" />
-          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>No project selected</h3>
-          <p style={{ fontSize: '0.8125rem', color: '#94a3b8', maxWidth: 420 }}>
+          <AlertTriangle size={28} color="var(--accent-amber)" />
+          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>No project selected</h3>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', maxWidth: 420 }}>
             Use the project switcher above to pick or search for a project by name.
           </p>
         </div>
       ) : !dashboard?.baseline ? (
         <div className="glass-panel" style={{ padding: 30, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          <AlertTriangle size={32} color="#f59e0b" />
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc' }}>No Fixed Baseline Recorded Yet</h3>
-          <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 440 }}>
+          <AlertTriangle size={32} color="var(--accent-amber)" />
+          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)' }}>No Fixed Baseline Recorded Yet</h3>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 440 }}>
             Before you can log bills and track running carbon, record this project's initial full-scope baseline.
           </p>
           <button onClick={() => setShowBaselineModal(true)} className="btn-primary" style={{ marginTop: 6 }}>
@@ -439,16 +441,16 @@ export default function TrackingChatHub() {
       ) : (
         <>
           {/* Baseline status strip */}
-          <div style={{ background: 'rgba(12, 22, 16, 0.75)', border: '1px solid rgba(49, 130, 206, 0.16)', borderRadius: 'var(--radius-md)', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8125rem', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ background: 'rgba(var(--c-surf-5), 0.75)', border: '1px solid rgba(var(--c-blue), 0.16)', borderRadius: 'var(--radius-md)', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8125rem', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span className={`badge ${dashboard.baseline.is_estimated ? 'badge-amber' : 'badge-mint'}`}>
                 {dashboard.baseline.is_estimated ? 'Estimated Baseline' : `Priced Baseline (${dashboard.baseline.source_type.toUpperCase()})`}
               </span>
-              <span style={{ color: '#f8fafc', fontWeight: 500 }}>Baseline: {(dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)} tCO₂e</span>
-              <span style={{ color: '#64748b' }}>•</span>
-              <span style={{ color: '#94a3b8' }}>Recorded {new Date(dashboard.baseline.recorded_at).toLocaleDateString()} from {dashboard.baseline.source_file}</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>Baseline: {(dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)} tCO₂e</span>
+              <span style={{ color: 'var(--text-muted)' }}>•</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>Recorded {new Date(dashboard.baseline.recorded_at).toLocaleDateString()} from {dashboard.baseline.source_file}</span>
             </div>
-            <span style={{ fontSize: '0.75rem', color: '#3182CE' }}>{bills.length} {bills.length === 1 ? 'Bill' : 'Bills'} Logged</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-lime)' }}>{bills.length} {bills.length === 1 ? 'Bill' : 'Bills'} Logged</span>
           </div>
 
           {/* KPIs */}
@@ -521,101 +523,67 @@ export default function TrackingChatHub() {
           {dashboard.benchmark_available && (
             <div className="glass-panel" style={{ padding: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#94a3b8' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
                   Typical Building Benchmark
                 </span>
                 <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>{dashboard.benchmark_floor_band_used}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc' }}>
+                <span className="tabular-nums" style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                   {dashboard.projected_carbon_per_sqm?.toFixed(1) || '-'}
                 </span>
-                <span style={{ fontSize: '0.8125rem', color: '#3182CE' }}>kgCO₂e / m²</span>
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>(Typical is {dashboard.typical_carbon_per_sqm?.toFixed(1)} kg/m²)</span>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)' }}>kgCO₂e / m²</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>(Typical is {dashboard.typical_carbon_per_sqm?.toFixed(1)} kg/m²)</span>
               </div>
             </div>
           )}
 
-          {/* Zoomable chart -- full width, ~75% of the viewport tall so a
-              long bill history reads like a real stock chart instead of a
-              cramped sidebar tile. Shows the previously-set baseline, the
-              projected total extrapolated from bills to date, and (while
-              chat has a pending what-if) the proposed total -- three fixed
-              reference lines against the one real measured series -- plus
-              a status readout (percent complete, source, latest period)
-              right above the plot.
-
-              Only CUMULATIVE-basis points go on this chart now -- see
-              ZoomableCarbonChart's own docstring for why mixing a
-              present-basis point (one billing period's own quantity, a
-              naturally much smaller number) onto the same axis as a
-              baseline/projected-scale running total was reported live as
-              confusing and is now a real, separate chart below instead. */}
+          {/* Unified data explorer (Phase G) -- replaces the two separate,
+              fixed-shape charts that used to live here (Cumulative vs
+              Baseline, and a second Present-Period-only chart below it)
+              with one chart the user builds themselves: pick which
+              metrics show (cumulative, present/monthly, baseline,
+              projected, proposed -- baseline on by default, same as
+              before) and an independent chart type per metric (line, bar/
+              histogram, area, points). Selected metrics share one x-axis;
+              the y-domain is computed only from whatever's currently
+              selected, so adding/removing a metric never permanently
+              distorts the scale. See CarbonDataExplorer.jsx's own
+              docstring for the full reasoning. */}
           <div className="glass-panel" style={{ padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <TrendingUp size={16} color="#3182CE" />
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Cumulative Carbon vs Baseline</h3>
+              <TrendingUp size={16} color="var(--accent-lime)" />
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Carbon Data Explorer</h3>
             </div>
-            <ZoomableCarbonChart
-              points={cumulativePoints}
+            <CarbonDataExplorer
+              cumulativePoints={cumulativePoints}
+              presentOnlyPoints={presentOnlyPoints}
               baselineTonnes={baselineTonnes}
               projectedTonnes={projectedTonnes}
               isExceedingBaseline={isExceedingBaseline}
               proposedTonnes={pendingRecommendation ? pendingRecommendation.carbon_kg_after / 1000 : null}
               billStatus={billStatus}
               onPointClick={(point) => setDeleteBillTarget(point)}
-              emptyMessage={
-                presentOnlyPoints.length > 0
-                  ? 'No cumulative-basis bill logged yet -- see Present-Period Bills below for what has been logged so far.'
-                  : undefined
-              }
               height="75vh"
             />
           </div>
 
-          {/* UX refinement: present-basis bills get their own chart,
-              genuinely separate from the cumulative one above -- not just
-              differently colored on the same canvas. Each point here is
-              one billing period's own quantity (never summed with any
-              other). Only rendered at all once there's at least one
-              present-basis bill.
-
-              Post-delivery correction: briefly passed baselineTonnes/
-              projectedTonnes/isExceedingBaseline through to this chart
-              too (the amber baseline + red/lime projected reference
-              lines), then asked to remove them again -- reverted back to
-              no reference lines here. This chart stays exactly what the
-              original design called for: the one real series, with
-              nothing it isn't actually being measured against. */}
-          {presentOnlyPoints.length > 0 && (
-            <div className="glass-panel" style={{ padding: 22 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-                <TrendingUp size={16} color="#fb923c" />
-                <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Present-Period Bills (not cumulative)</h3>
-              </div>
-              <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginBottom: 14, lineHeight: 1.4 }}>
-                Each point is that billing period's own quantity only -- never a running total, and never added to
-                the cumulative chart above.
-              </p>
-              <ZoomableCarbonChart
-                points={presentOnlyPoints}
-                onPointClick={(point) => setDeleteBillTarget(point)}
-                height={240}
-              />
-            </div>
-          )}
-
-          {/* Latest-bill category breakdown -- its own row now that the
-              chart above takes the full width. */}
+          {/* Carbon-by-material breakdown -- its own row now that the chart
+              above takes the full width. UX refinement: used to show only
+              the latest bill's own breakdown; now stacks every logged
+              bill's contribution per category, with the latest bill's
+              share shaded differently (see MaterialBreakdownChart's own
+              docstring for why that has to be cumulative/present-basis
+              aware rather than a naive sum). */}
           <div className="glass-panel" style={{ padding: 22 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <BarChart3 size={16} color="#38bdf8" />
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Latest Bill · Carbon by Material</h3>
+              <BarChart3 size={16} color="var(--accent-cyan)" />
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Carbon by Material · All Bills to Date</h3>
             </div>
-            {latestBill ? (
-              <CategoryBarChart categories={latestBill.category_breakdown || []} />
+            {bills.length > 0 ? (
+              <MaterialBreakdownChart bills={bills} />
             ) : (
-              <div style={{ padding: '20px 0', textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>
+              <div style={{ padding: '20px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
                 Add a bill to see its material breakdown here.
               </div>
             )}
@@ -623,12 +591,12 @@ export default function TrackingChatHub() {
 
           {/* Unified bills table */}
           <div className="glass-panel" style={{ padding: 22 }}>
-            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>All Logged Bills</h3>
+            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>All Logged Bills</h3>
             {bills.length > 0 ? (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
-                    <tr style={{ borderBottom: '1px solid rgba(49, 130, 206, 0.15)', color: '#3182CE', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <tr style={{ borderBottom: '1px solid rgba(var(--c-blue), 0.15)', color: 'var(--accent-lime)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                       <th style={{ padding: '8px 12px' }}>Period</th>
                       <th style={{ padding: '8px 12px' }}>Billed Date</th>
                       <th style={{ padding: '8px 12px' }}>Source</th>
@@ -641,9 +609,9 @@ export default function TrackingChatHub() {
                   </thead>
                   <tbody>
                     {bills.map((b, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', fontSize: '0.8125rem' }}>
-                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#f8fafc' }}>{b.period}</td>
-                        <td style={{ padding: '8px 12px', color: '#94a3b8' }}>{b.billed_date}</td>
+                      <tr key={idx} style={{ borderBottom: '1px solid rgba(var(--c-overlay), 0.04)', fontSize: '0.8125rem' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>{b.period}</td>
+                        <td style={{ padding: '8px 12px', color: 'var(--text-tertiary)' }}>{b.billed_date}</td>
                         <td style={{ padding: '8px 12px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
                             {b.bill_source === 'pdf_cop' ? (
@@ -664,22 +632,22 @@ export default function TrackingChatHub() {
                             )}
                           </div>
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#3182CE', fontWeight: 600 }}>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--accent-lime)', fontWeight: 600 }}>
                           {(b.total_gwp_kg_co2e_to_date / 1000).toFixed(1)}
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#cbd5e1' }}>₹{(b.total_value_to_date / 100000).toFixed(1)}L</td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#3182CE' }}>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--text-secondary)' }}>₹{(b.total_value_to_date / 100000).toFixed(1)}L</td>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--accent-lime)' }}>
                           {b.stated_percent_complete ? `${b.stated_percent_complete.toFixed(1)}%` : '-'}
                         </td>
-                        <td className="tabular-nums" style={{ padding: '8px 12px', color: '#94a3b8' }}>{b.n_lines_computed}/{b.n_lines_total}</td>
+                        <td className="tabular-nums" style={{ padding: '8px 12px', color: 'var(--text-tertiary)' }}>{b.n_lines_computed}/{b.n_lines_total}</td>
                         <td style={{ padding: '8px 12px' }}>
                           <button
                             type="button"
                             onClick={() => setDeleteBillTarget(b)}
                             title={`Remove bill for period "${b.period}"`}
                             style={{
-                              background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.2)',
-                              borderRadius: 'var(--radius-sm)', color: '#fb7185', cursor: 'pointer',
+                              background: 'rgba(var(--c-rose), 0.08)', border: '1px solid rgba(var(--c-rose), 0.2)',
+                              borderRadius: 'var(--radius-sm)', color: 'var(--accent-rose-light)', cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 5,
                             }}
                           >
@@ -692,7 +660,7 @@ export default function TrackingChatHub() {
                 </table>
               </div>
             ) : (
-              <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>No bills logged yet. Click "Add Bill" above to record the first period.</p>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No bills logged yet. Click "Add Bill" above to record the first period.</p>
             )}
           </div>
         </>
@@ -706,10 +674,10 @@ export default function TrackingChatHub() {
 
       {/* Set/Update Baseline Modal */}
       {showBaselineModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>Set Project Baseline</h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Set Project Baseline</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               This recorded baseline serves as the permanent benchmark point every subsequent bill is measured against.
             </p>
             <form onSubmit={handleRecordBaselineSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -728,12 +696,12 @@ export default function TrackingChatHub() {
                     baselined that way, keep working) -- this UI change
                     alone doesn't remove that capability, it just stops
                     offering either for new baselines. */}
-                <div className="form-input" style={{ display: 'flex', alignItems: 'center', color: '#f8fafc', cursor: 'default' }}>
+                <div className="form-input" style={{ display: 'flex', alignItems: 'center', color: 'var(--text-primary)', cursor: 'default' }}>
                   Uploaded Work Order (.pdf)
                 </div>
               </div>
 
-              <div style={{ border: '2px dashed rgba(49, 130, 206, 0.25)', borderRadius: 'var(--radius-md)', padding: 20, textAlign: 'center', background: 'rgba(9, 16, 11, 0.6)' }}>
+              <div style={{ border: '2px dashed rgba(var(--c-blue), 0.25)', borderRadius: 'var(--radius-md)', padding: 20, textAlign: 'center', background: 'rgba(var(--c-surf-1), 0.6)' }}>
                 <input
                   type="file"
                   id="hub-baseline-file-input"
@@ -743,7 +711,7 @@ export default function TrackingChatHub() {
                 />
                 <label htmlFor="hub-baseline-file-input" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <Upload size={20} color="var(--accent-lime)" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {baselineFile ? baselineFile.name : 'Select Work Order (.pdf) file'}
                   </span>
                 </label>
@@ -762,10 +730,10 @@ export default function TrackingChatHub() {
 
       {/* Add Bill Modal -- unified: accepts .xlsx OR .pdf, backend auto-detects */}
       {showBillModal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 480, padding: 28 }}>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: '#f8fafc', marginBottom: 6 }}>Add a Bill</h3>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 18 }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Add a Bill</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 18 }}>
               Upload an Excel BOQ-shaped bill or a Certificate of Payment PDF — either works here, evaluated against the same baseline.
             </p>
             <form onSubmit={handleLogBillSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -808,7 +776,7 @@ export default function TrackingChatHub() {
               </div>
 
               {duplicateDateBill && (
-                <p style={{ fontSize: '0.75rem', color: '#f59e0b', margin: '-8px 0 0', lineHeight: 1.4 }}>
+                <p style={{ fontSize: '0.75rem', color: 'var(--accent-amber)', margin: '-8px 0 0', lineHeight: 1.4 }}>
                   ⚠ Period "{duplicateDateBill.period}" is already logged with this same date. Logging another
                   bill on the same date can scramble the chart's left-to-right order -- pick a different date
                   if these are actually two separate periods.
@@ -831,7 +799,7 @@ export default function TrackingChatHub() {
                 />
               </div>
 
-              <div style={{ border: '2px dashed rgba(49, 130, 206, 0.25)', borderRadius: 'var(--radius-md)', padding: 20, textAlign: 'center', background: 'rgba(9, 16, 11, 0.6)' }}>
+              <div style={{ border: '2px dashed rgba(var(--c-blue), 0.25)', borderRadius: 'var(--radius-md)', padding: 20, textAlign: 'center', background: 'rgba(var(--c-surf-1), 0.6)' }}>
                 <input
                   type="file"
                   id="hub-bill-file-input"
@@ -841,7 +809,7 @@ export default function TrackingChatHub() {
                 />
                 <label htmlFor="hub-bill-file-input" style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   <Upload size={20} color="var(--accent-lime)" />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                     {billFile ? billFile.name : 'Select Bill Document (.xlsx or .pdf)'}
                   </span>
                 </label>
@@ -860,7 +828,7 @@ export default function TrackingChatHub() {
                     <option value="cummulative">Cumulative to date (Cummu. column)</option>
                     <option value="present">This billing period only (Present column)</option>
                   </select>
-                  <p style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: 6, lineHeight: 1.4 }}>
+                  <p style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)', marginTop: 6, lineHeight: 1.4 }}>
                     {billQuantityBasis === 'present'
                       ? "Uses only this RA bill's Present-column quantities -- this bill will represent this period's work alone, not the running total."
                       : "Uses the Cummu. column -- this bill represents total work done on the project as of this date (the default)."}
@@ -887,18 +855,18 @@ export default function TrackingChatHub() {
       {deleteBillTarget && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
+            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 420, padding: 28 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <AlertTriangle size={20} color="#fb7185" />
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Remove this bill?</h3>
+              <AlertTriangle size={20} color="var(--accent-rose-light)" />
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Remove this bill?</h3>
             </div>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 22, lineHeight: 1.5 }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
               This permanently removes the bill logged for period{' '}
-              <strong style={{ color: '#f8fafc' }}>"{deleteBillTarget.period}"</strong> (billed{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>"{deleteBillTarget.period}"</strong> (billed{' '}
               {deleteBillTarget.billed_date}). The baseline and every other bill are untouched. This cannot be undone.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

@@ -143,23 +143,23 @@ export default function ChatBar({ chatTools, onPendingChange }) {
         bottom: 16,
         padding: 0,
         overflow: 'hidden',
-        border: '1px solid rgba(49, 130, 206, 0.25)',
-        boxShadow: '0 12px 32px rgba(0,0,0,0.45)',
+        border: '1px solid rgba(var(--c-blue), 0.25)',
+        boxShadow: '0 12px 32px rgba(var(--c-black),0.45)',
         // UX fix: sticky over the bills table as the page scrolls, so the
         // default --glass-bg-elevated (35% opacity) let table text bleed
         // through and collide with chat messages/answers. Same opaque
         // override pattern as Toast.jsx and ProjectSwitcher's dropdown.
-        background: 'rgba(9, 20, 14, 0.97)',
+        background: 'rgba(var(--c-surf-7), 0.97)',
         backdropFilter: 'blur(24px)',
         WebkitBackdropFilter: 'blur(24px)',
       }}
     >
       {isExpanded && messages.length > 0 && (
-        <div style={{ maxHeight: 320, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid rgba(49, 130, 206, 0.12)' }}>
+        <div style={{ maxHeight: 320, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12, borderBottom: '1px solid rgba(var(--c-blue), 0.12)' }}>
           {messages.map((msg) => {
             if (msg.sender === 'system') {
               return (
-                <div key={msg.id} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: '#94a3b8', background: 'rgba(49,130,206,0.08)', border: '1px solid rgba(49,130,206,0.18)', borderRadius: 'var(--radius-full)', padding: '4px 12px' }}>
+                <div key={msg.id} style={{ alignSelf: 'center', display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', color: 'var(--text-tertiary)', background: 'rgba(var(--c-blue),0.08)', border: '1px solid rgba(var(--c-blue),0.18)', borderRadius: 'var(--radius-full)', padding: '4px 12px' }}>
                   <ArrowRightLeft size={11} />
                   {msg.text}
                 </div>
@@ -172,11 +172,11 @@ export default function ChatBar({ chatTools, onPendingChange }) {
                 style={{
                   alignSelf: isUser ? 'flex-end' : 'flex-start',
                   maxWidth: '75%',
-                  background: isUser ? 'rgba(49, 130, 206, 0.14)' : 'rgba(18, 30, 22, 0.9)',
-                  border: `1px solid ${isUser ? 'rgba(49, 130, 206, 0.3)' : 'rgba(49, 130, 206, 0.15)'}`,
+                  background: isUser ? 'rgba(var(--c-blue), 0.14)' : 'rgba(var(--c-surf-4), 0.9)',
+                  border: `1px solid ${isUser ? 'rgba(var(--c-blue), 0.3)' : 'rgba(var(--c-blue), 0.15)'}`,
                   borderRadius: 'var(--radius-md)',
                   padding: '10px 14px',
-                  color: '#f8fafc',
+                  color: 'var(--text-primary)',
                   fontSize: '0.8125rem',
                   lineHeight: 1.45,
                 }}
@@ -194,7 +194,7 @@ export default function ChatBar({ chatTools, onPendingChange }) {
                     )}
                     <div>{msg.data?.answer_text}</div>
                     {msg.data?.savings_pct !== null && msg.data?.savings_pct !== undefined && (
-                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#3182CE', fontWeight: 600 }}>
+                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid rgba(var(--c-overlay),0.06)', display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
                         <span>Impact:</span>
                         <span>
                           {msg.data.savings_pct > 0 ? `-${msg.data.savings_pct.toFixed(1)}% savings` : `${Math.abs(msg.data.savings_pct).toFixed(1)}% increase`}
@@ -212,8 +212,8 @@ export default function ChatBar({ chatTools, onPendingChange }) {
 
       {/* Pending proposal -- Confirm/Discard */}
       {pending && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', background: 'rgba(167, 139, 250, 0.08)', borderBottom: '1px solid rgba(167, 139, 250, 0.25)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.78rem', color: '#c4b5fd' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '10px 16px', background: 'rgba(var(--c-violet), 0.08)', borderBottom: '1px solid rgba(var(--c-violet), 0.25)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.78rem', color: 'var(--accent-violet-light)' }}>
             Pending: <strong>{pending.label}</strong>
             {pending.requires_engineering_review && <span className="badge badge-amber" style={{ fontSize: '0.6rem', marginLeft: 8 }}>Needs review</span>}
           </span>
@@ -229,7 +229,7 @@ export default function ChatBar({ chatTools, onPendingChange }) {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px' }}>
-        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(49, 130, 206, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3182CE', flexShrink: 0 }}>
+        <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(var(--c-blue), 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-lime)', flexShrink: 0 }}>
           <Sparkles size={15} />
         </div>
 
@@ -237,7 +237,7 @@ export default function ChatBar({ chatTools, onPendingChange }) {
           <button
             type="button"
             onClick={() => setIsExpanded((v) => !v)}
-            style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4 }}
           >
             {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
           </button>
@@ -268,7 +268,7 @@ export default function ChatBar({ chatTools, onPendingChange }) {
             <button
               key={toolName}
               onClick={() => handleSend(info.example_question)}
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(49, 130, 206, 0.18)', borderRadius: 'var(--radius-full)', padding: '4px 10px', fontSize: '0.7rem', color: '#cbd5e1', cursor: 'pointer' }}
+              style={{ background: 'rgba(var(--c-overlay),0.04)', border: '1px solid rgba(var(--c-blue), 0.18)', borderRadius: 'var(--radius-full)', padding: '4px 10px', fontSize: '0.7rem', color: 'var(--text-secondary)', cursor: 'pointer' }}
             >
               {info.example_question}
             </button>

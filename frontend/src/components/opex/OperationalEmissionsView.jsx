@@ -22,10 +22,10 @@ const EMPTY_FORM = {
 // order" rule this app's other charts already follow (see
 // common/charts/CategoryBarChart.jsx).
 const SOURCE_COLORS = {
-  diesel_dg: '#f59e0b',
-  diesel_vehicles: '#fb923c',
-  lpg: '#a78bfa',
-  grid_electricity: '#3182CE',
+  diesel_dg: 'var(--accent-amber)',
+  diesel_vehicles: 'var(--accent-orange)',
+  lpg: 'var(--accent-violet)',
+  grid_electricity: 'var(--accent-lime)',
 }
 const SOURCE_LABELS = {
   diesel_dg: 'Diesel (DG Set)',
@@ -37,26 +37,26 @@ const SOURCE_LABELS = {
 function SourceBars({ breakdown }) {
   const anyValue = breakdown.some((b) => b.kg_co2e > 0)
   if (!anyValue) {
-    return <div style={{ fontSize: '0.78rem', color: '#64748b', padding: '8px 0' }}>No quantity entered for this scope.</div>
+    return <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', padding: '8px 0' }}>No quantity entered for this scope.</div>
   }
   const maxVal = Math.max(...breakdown.map((b) => b.kg_co2e)) || 1
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {breakdown.map((b) => {
-        const color = SOURCE_COLORS[b.source] || '#94a3b8'
+        const color = SOURCE_COLORS[b.source] || 'var(--text-tertiary)'
         const pct = (b.kg_co2e / maxVal) * 100
         return (
           <div key={b.source}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 4 }}>
-              <span style={{ color: '#cbd5e1', fontWeight: 500 }}>{SOURCE_LABELS[b.source] || b.source}</span>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{SOURCE_LABELS[b.source] || b.source}</span>
               <span className="tabular-nums" style={{ color, fontWeight: 700 }}>
                 {(b.kg_co2e / 1000).toFixed(2)} t{' '}
-                <span style={{ color: '#64748b', fontWeight: 400 }}>
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
                   ({b.quantity.toLocaleString()} {b.unit})
                 </span>
               </span>
             </div>
-            <div style={{ height: 10, borderRadius: 999, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+            <div style={{ height: 10, borderRadius: 999, background: 'rgba(var(--c-overlay),0.05)', overflow: 'hidden' }}>
               <div
                 style={{
                   width: `${Math.max(pct, 2)}%`,
@@ -77,13 +77,13 @@ function SourceBars({ breakdown }) {
 function ScopeSplitBar({ scope1Pct, scope2Pct }) {
   return (
     <div>
-      <div style={{ display: 'flex', height: 22, borderRadius: 999, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{ width: `${scope1Pct}%`, background: '#f59e0b', transition: 'width 0.4s ease' }} title={`Scope 1: ${scope1Pct.toFixed(1)}%`} />
-        <div style={{ width: `${scope2Pct}%`, background: '#3182CE', transition: 'width 0.4s ease' }} title={`Scope 2: ${scope2Pct.toFixed(1)}%`} />
+      <div style={{ display: 'flex', height: 22, borderRadius: 999, overflow: 'hidden', border: '1px solid rgba(var(--c-overlay),0.08)' }}>
+        <div style={{ width: `${scope1Pct}%`, background: 'var(--accent-amber)', transition: 'width 0.4s ease' }} title={`Scope 1: ${scope1Pct.toFixed(1)}%`} />
+        <div style={{ width: `${scope2Pct}%`, background: 'var(--accent-lime)', transition: 'width 0.4s ease' }} title={`Scope 2: ${scope2Pct.toFixed(1)}%`} />
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: '0.72rem' }}>
-        <span style={{ color: '#f59e0b' }}>● Scope 1 — {scope1Pct.toFixed(1)}%</span>
-        <span style={{ color: '#3182CE' }}>Scope 2 — {scope2Pct.toFixed(1)}% ●</span>
+        <span style={{ color: 'var(--accent-amber)' }}>● Scope 1 — {scope1Pct.toFixed(1)}%</span>
+        <span style={{ color: 'var(--accent-lime)' }}>Scope 2 — {scope2Pct.toFixed(1)}% ●</span>
       </div>
     </div>
   )
@@ -171,10 +171,10 @@ export default function OperationalEmissionsView() {
       <div className="glass-panel" style={{ padding: '24px 28px', borderLeft: '4px solid var(--accent-mint)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span className="badge badge-mint">Scope 1 & 2</span>
-          <span style={{ fontSize: '0.8125rem', color: '#3182CE', fontWeight: 600 }}>Operational Emissions</span>
+          <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)', fontWeight: 600 }}>Operational Emissions</span>
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f8fafc' }}>Site Fuel & Electricity Emissions</h2>
-        <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 640 }}>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)' }}>Site Fuel & Electricity Emissions</h2>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 640 }}>
           Enter fuel and electricity consumption for an HQ or a Project. Emission factors (diesel, LPG, grid
           electricity) are fixed and sourced from CEA/DEFRA — you only enter quantities.
         </p>
@@ -225,8 +225,8 @@ export default function OperationalEmissionsView() {
 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Flame size={15} color="#f59e0b" />
-            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>Scope 1 — Fuel Burned On-Site</span>
+            <Flame size={15} color="var(--accent-amber)" />
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>Scope 1 — Fuel Burned On-Site</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             <div className="form-group">
@@ -246,8 +246,8 @@ export default function OperationalEmissionsView() {
 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Zap size={15} color="#3182CE" />
-            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>Scope 2 — Purchased Electricity</span>
+            <Zap size={15} color="var(--accent-lime)" />
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>Scope 2 — Purchased Electricity</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             <div className="form-group">
@@ -259,8 +259,8 @@ export default function OperationalEmissionsView() {
 
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <Building2 size={15} color="#64748b" />
-            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc' }}>Optional — Intensity Metrics</span>
+            <Building2 size={15} color="var(--text-muted)" />
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>Optional — Intensity Metrics</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
             <div className="form-group">
@@ -282,7 +282,7 @@ export default function OperationalEmissionsView() {
 
       {result && (
         <div className="glass-panel" style={{ padding: 26, display: 'flex', flexDirection: 'column', gap: 22 }}>
-          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>
+          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Results {result.entity_name ? `— ${result.entity_name}` : ''}
           </h3>
 
@@ -316,7 +316,7 @@ export default function OperationalEmissionsView() {
           </div>
 
           <div>
-            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 10 }}>
               Scope 1 vs Scope 2 Split
             </span>
             <ScopeSplitBar scope1Pct={result.scope1_pct_of_combined} scope2Pct={result.scope2_pct_of_combined} />
@@ -324,13 +324,13 @@ export default function OperationalEmissionsView() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24 }}>
             <div>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 10 }}>
                 Scope 1 by Source
               </span>
               <SourceBars breakdown={result.scope1_breakdown} />
             </div>
             <div>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 10 }}>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-tertiary)', display: 'block', marginBottom: 10 }}>
                 Scope 2 by Source
               </span>
               <SourceBars breakdown={result.scope2_breakdown} />
@@ -338,9 +338,9 @@ export default function OperationalEmissionsView() {
           </div>
 
           {result.intensity_kg_co2e_per_lakh_revenue != null && (
-            <div style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
               Revenue intensity:{' '}
-              <strong style={{ color: '#f8fafc' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>
                 {result.intensity_kg_co2e_per_lakh_revenue.toLocaleString(undefined, { maximumFractionDigits: 2 })} kg CO2e / INR lakh
               </strong>
             </div>
@@ -350,13 +350,13 @@ export default function OperationalEmissionsView() {
 
       <div className="glass-panel" style={{ padding: 26 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <Clock size={15} color="#64748b" />
-          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Past Calculations</h3>
+          <Clock size={15} color="var(--text-muted)" />
+          <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Past Calculations</h3>
         </div>
         {isLoadingHistory ? (
-          <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>Loading...</p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Loading...</p>
         ) : history.length === 0 ? (
-          <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>No calculations yet — fill out the form above and click Calculate.</p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No calculations yet — fill out the form above and click Calculate.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {history.map((entry) => (
@@ -367,18 +367,18 @@ export default function OperationalEmissionsView() {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   padding: '10px 14px',
-                  background: 'rgba(255,255,255,0.03)',
+                  background: 'rgba(var(--c-overlay),0.03)',
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
                 }}
                 onClick={() => setResult(entry)}
               >
                 <div>
-                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#f8fafc' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                     {entry.entity_name || 'Untitled entity'}{' '}
                     {entry.company ? `(${entry.company}${entry.entity_type ? ` ${entry.entity_type}` : ''})` : ''}
                   </span>
-                  <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                     {entry.combined_total_tonnes_co2e.toLocaleString(undefined, { maximumFractionDigits: 2 })} t CO2e combined ·{' '}
                     {new Date(entry.created_at).toLocaleString()}
                   </div>
@@ -389,11 +389,11 @@ export default function OperationalEmissionsView() {
                     handleDelete(entry.entry_id)
                   }}
                   style={{
-                    background: 'rgba(244, 63, 94, 0.1)',
-                    border: '1px solid rgba(244, 63, 94, 0.25)',
+                    background: 'rgba(var(--c-rose), 0.1)',
+                    border: '1px solid rgba(var(--c-rose), 0.25)',
                     borderRadius: 'var(--radius-sm)',
                     padding: '6px 8px',
-                    color: '#fb7185',
+                    color: 'var(--accent-rose-light)',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',

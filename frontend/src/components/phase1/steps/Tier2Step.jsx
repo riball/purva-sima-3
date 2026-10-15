@@ -18,12 +18,12 @@ export default function Tier2Step() {
     <div className="glass-panel" style={{ padding: 28, maxWidth: 640, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span className="badge badge-mint" style={{ fontSize: '0.65rem' }}>Step 2 of 5 &middot; Optional</span>
-        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Improves match accuracy -- estimated if left blank</span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Improves match accuracy -- estimated if left blank</span>
       </div>
-      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: '#f8fafc', marginBottom: 6 }}>
+      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
         Typology & substructure
       </h2>
-      <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 22, lineHeight: 1.5 }}>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
         None of this is required -- skip it and the system estimates it from the most similar project on file.
       </p>
 

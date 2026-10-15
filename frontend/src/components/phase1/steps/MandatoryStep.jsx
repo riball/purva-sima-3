@@ -1,6 +1,6 @@
 import React from 'react'
 import { ArrowRight, Zap } from 'lucide-react'
-import { usePhase1Form } from '../Phase1FormContext'
+import { usePhase1Form, MAX_GFA_SQM, SQM_TO_SQFT } from '../Phase1FormContext'
 
 /**
  * UX refinement (Phase B), step 1 of 5: ONLY the fields the backend's
@@ -23,10 +23,10 @@ export default function MandatoryStep() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span className="badge badge-lime" style={{ fontSize: '0.65rem' }}>Step 1 of 5 &middot; Required</span>
       </div>
-      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: '#f8fafc', marginBottom: 6 }}>
+      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
         Tell us the basics
       </h2>
-      <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 22, lineHeight: 1.5 }}>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
         Just four things to start -- the system fills in everything else from your company's own project history.
         You can refine the estimate with more detail on the next steps, or skip straight to a result.
       </p>
@@ -50,6 +50,7 @@ export default function MandatoryStep() {
               type="number"
               required
               min="1"
+              max={formData.gfa_unit === 'sqft' ? Math.round(MAX_GFA_SQM * SQM_TO_SQFT) : MAX_GFA_SQM}
               step="any"
               placeholder={formData.gfa_unit === 'sqft' ? 'e.g. 269000' : 'e.g. 25000'}
               value={formData.gfa_value}
@@ -111,9 +112,16 @@ export default function MandatoryStep() {
         </button>
       </div>
       {!isMandatoryValid() && (
-        <p style={{ fontSize: '0.72rem', color: '#64748b', textAlign: 'right', marginTop: 6 }}>
+        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: 6 }}>
           <Zap size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: -1 }} />
-          Enter a GFA and location to continue
+          {(() => {
+            const typed = Number(formData.gfa_value)
+            const sqmEquivalent = formData.gfa_unit === 'sqft' ? typed / SQM_TO_SQFT : typed
+            if (formData.gfa_value && sqmEquivalent > MAX_GFA_SQM) {
+              return `GFA looks too large to be real (max ${formData.gfa_unit === 'sqft' ? Math.round(MAX_GFA_SQM * SQM_TO_SQFT).toLocaleString() : MAX_GFA_SQM.toLocaleString()} ${formData.gfa_unit}) -- double-check for an extra digit`
+            }
+            return 'Enter a GFA and location to continue'
+          })()}
         </p>
       )}
     </div>

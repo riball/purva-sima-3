@@ -60,8 +60,8 @@ export default function ProjectsOverview({ onNavigatePhase }) {
         className="glass-panel"
         style={{
           padding: '32px 36px',
-          background: 'rgba(12, 22, 15, 0.25)',
-          border: '1px solid rgba(44, 82, 130, 0.12)',
+          background: 'rgba(var(--c-surf-5), 0.25)',
+          border: '1px solid rgba(var(--c-blue-dim), 0.12)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -72,16 +72,16 @@ export default function ProjectsOverview({ onNavigatePhase }) {
         <div style={{ maxWidth: 680, position: 'relative', zIndex: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span className="badge badge-lime">Company Portfolio</span>
-            <span style={{ fontSize: '0.8125rem', color: '#3182CE', fontWeight: 600 }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--accent-lime)', fontWeight: 600 }}>
               {currentCompany?.display_name || activeCompanyId}
             </span>
           </div>
 
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 10 }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 10 }}>
             Embodied Carbon Analyzer
           </h1>
 
-          <p style={{ fontSize: '0.9375rem', color: '#94a3b8', lineHeight: 1.5, marginBottom: 20 }}>
+          <p style={{ fontSize: '0.9375rem', color: 'var(--text-tertiary)', lineHeight: 1.5, marginBottom: 20 }}>
             Every number is verified against actual quantities and versioned emission factors. Never a guessed delta.
             Track your projects from initial conceptual forms, through real BOQ / Work Order audits, to live site billing.
           </p>
@@ -129,7 +129,7 @@ export default function ProjectsOverview({ onNavigatePhase }) {
             width: 280,
             height: 280,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(49, 130, 206, 0.14) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(var(--c-blue), 0.14) 0%, transparent 70%)',
             pointerEvents: 'none',
           }}
         />
@@ -177,33 +177,39 @@ export default function ProjectsOverview({ onNavigatePhase }) {
 
       {/* Projects Grid */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        {/* flexWrap added, and the search input's fixed width: 240 changed
+            to width: '100%' + maxWidth: 240, so this row wraps onto two
+            lines on a narrow viewport instead of overflowing -- a fixed
+            240px input alongside the title block in a non-wrapping
+            justify-content: space-between row was ~48px wider than a
+            390px viewport before this fix. */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
               Projects
             </h2>
-            <p style={{ fontSize: '0.8125rem', color: '#64748b' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
               Select a project to load its context across all phases -- or search by name
             </p>
           </div>
 
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ position: 'relative' }}>
-              <Search size={14} color="#64748b" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
+            <div style={{ position: 'relative', width: '100%', maxWidth: 240 }}>
+              <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
                 placeholder="Search projects by name..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="form-input"
-                style={{ paddingLeft: 30, paddingRight: searchQuery ? 30 : 12, fontSize: '0.8125rem', width: 240 }}
+                style={{ paddingLeft: 30, paddingRight: searchQuery ? 30 : 12, fontSize: '0.8125rem', width: '100%' }}
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
                   style={{
                     position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                    background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex',
+                    background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex',
                   }}
                 >
                   <X size={13} />
@@ -222,11 +228,11 @@ export default function ProjectsOverview({ onNavigatePhase }) {
         </div>
 
         {isLoading ? (
-          <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+          <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: 'var(--text-tertiary)' }}>
             Loading projects...
           </div>
         ) : visibleProjects.length === 0 && q ? (
-          <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+          <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: 'var(--text-tertiary)' }}>
             No project found matching "{searchQuery}".
           </div>
         ) : projects.length === 0 ? (
@@ -246,19 +252,19 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                 width: 48,
                 height: 48,
                 borderRadius: '50%',
-                background: 'rgba(49, 130, 206, 0.1)',
+                background: 'rgba(var(--c-blue), 0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#3182CE',
+                color: 'var(--accent-lime)',
               }}
             >
               <Building2 size={24} />
             </div>
-            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: '#f8fafc' }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
               No Projects Found for {currentCompany?.display_name || activeCompanyId}
             </h3>
-            <p style={{ fontSize: '0.875rem', color: '#94a3b8', maxWidth: 460 }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 460 }}>
               Start by submitting a quick conceptual estimate in Phase 1, or upload an actual project BOQ spreadsheet / Work Order PDF in Phase 2.
             </p>
             <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
@@ -271,7 +277,14 @@ export default function ProjectsOverview({ onNavigatePhase }) {
             </div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 16 }}>
+          /* minmax(min(360px, 100%), 1fr) instead of a bare minmax(360px, 1fr):
+             on a narrow viewport (e.g. a phone at ~390px, minus page padding)
+             a flat 360px minimum doesn't fit and the grid overflows
+             horizontally, clipping project cards off-screen -- measured
+             ~48px of overflow at 390px wide before this fix. min(360px, 100%)
+             lets the single-column case shrink to the actual available width
+             instead of forcing a track that's wider than the viewport. */
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 16 }}>
             {visibleProjects.map((project) => {
               const isSelected = project.project_id === activeProjectId
               const displayName = project.project_name || `Project ${project.project_id.slice(0, 8)}`
@@ -288,18 +301,24 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                     gap: 16,
                     cursor: 'pointer',
                     borderColor: isSelected ? 'var(--accent-lime)' : undefined,
-                    boxShadow: isSelected ? '0 0 20px rgba(49, 130, 206, 0.25)' : undefined,
+                    boxShadow: isSelected ? '0 0 20px rgba(var(--c-blue), 0.25)' : undefined,
                   }}
                   onClick={() => selectProject(project.project_id)}
                 >
                   <div>
-                    {/* Header: Project Name & Selected Indicator */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
-                      <div>
-                        <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc', lineHeight: 1.3 }}>
+                    {/* Header: Project Name & Selected Indicator.
+                        flexWrap + minWidth: 0 on the title block + a
+                        truncated (not wrapping/forcing-width) ID line --
+                        without these, a flex-shrink:0 action-button group
+                        alongside a long monospace project-id string
+                        overflowed the card (and the whole page) by ~39px
+                        at a 390px viewport before this fix. */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
+                      <div style={{ minWidth: 0, flex: '1 1 160px' }}>
+                        <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
                           {displayName}
                         </h3>
-                        <span style={{ fontSize: '0.72rem', color: '#64748b', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'monospace', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           ID: {project.project_id}
                         </span>
                       </div>
@@ -311,8 +330,8 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                           }}
                           title="Rename project"
                           style={{
-                            background: 'rgba(49, 130, 206, 0.08)', border: '1px solid rgba(49, 130, 206, 0.15)',
-                            borderRadius: 'var(--radius-sm)', color: '#3182CE', cursor: 'pointer',
+                            background: 'rgba(var(--c-blue), 0.08)', border: '1px solid rgba(var(--c-blue), 0.15)',
+                            borderRadius: 'var(--radius-sm)', color: 'var(--accent-lime)', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 5,
                           }}
                         >
@@ -325,8 +344,8 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                           }}
                           title="Delete project"
                           style={{
-                            background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.2)',
-                            borderRadius: 'var(--radius-sm)', color: '#fb7185', cursor: 'pointer',
+                            background: 'rgba(var(--c-rose), 0.08)', border: '1px solid rgba(var(--c-rose), 0.2)',
+                            borderRadius: 'var(--radius-sm)', color: 'var(--accent-rose-light)', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 5,
                           }}
                         >
@@ -377,7 +396,7 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                   {/* Actions / Jump to Phases */}
                   <div
                     style={{
-                      borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                      borderTop: '1px solid rgba(var(--c-overlay), 0.06)',
                       paddingTop: 14,
                       display: 'flex',
                       alignItems: 'center',
@@ -450,7 +469,7 @@ export default function ProjectsOverview({ onNavigatePhase }) {
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        color: isSelected ? '#3182CE' : '#3182CE',
+                        color: isSelected ? 'var(--accent-lime)' : 'var(--accent-lime)',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 4,
@@ -484,17 +503,17 @@ export default function ProjectsOverview({ onNavigatePhase }) {
       {deleteTarget && (
         <div
           style={{
-            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
+            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
           }}
         >
           <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 420, padding: 28 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-              <AlertTriangle size={20} color="#fb7185" />
-              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f8fafc' }}>Delete this project?</h3>
+              <AlertTriangle size={20} color="var(--accent-rose-light)" />
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Delete this project?</h3>
             </div>
-            <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 22, lineHeight: 1.5 }}>
-              This permanently deletes <strong style={{ color: '#f8fafc' }}>"{deleteTarget.project_name}"</strong> --
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
+              This permanently deletes <strong style={{ color: 'var(--text-primary)' }}>"{deleteTarget.project_name}"</strong> --
               its conceptual estimate, baseline, every logged bill, and its swap/audit history. This cannot be undone.
             </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

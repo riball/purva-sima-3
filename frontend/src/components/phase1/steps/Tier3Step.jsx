@@ -16,12 +16,12 @@ export default function Tier3Step() {
     <div className="glass-panel" style={{ padding: 28, maxWidth: 640, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>Step 3 of 5 &middot; Optional</span>
-        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>IFC India anchor keys -- estimated if left blank</span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>IFC India anchor keys -- estimated if left blank</span>
       </div>
-      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: '#f8fafc', marginBottom: 6 }}>
+      <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>
         Material specifications
       </h2>
-      <p style={{ fontSize: '0.8125rem', color: '#94a3b8', marginBottom: 22, lineHeight: 1.5 }}>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
         The most advanced tier -- also optional. When you're ready, generate the estimate below.
       </p>
 

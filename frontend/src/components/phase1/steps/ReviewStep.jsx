@@ -18,8 +18,8 @@ export default function ReviewStep() {
     const currentValue = reviewFields[path] !== undefined ? reviewFields[path] : fieldObj.value ?? ''
 
     return (
-      <tr key={path} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-        <td style={{ padding: '10px 14px', fontSize: '0.8125rem', color: '#f8fafc', fontWeight: 500 }}>{label}</td>
+      <tr key={path} style={{ borderBottom: '1px solid rgba(var(--c-overlay), 0.05)' }}>
+        <td style={{ padding: '10px 14px', fontSize: '0.8125rem', color: 'var(--text-primary)', fontWeight: 500 }}>{label}</td>
         <td style={{ padding: '10px 14px' }}>
           <ConfidenceBadge source={fieldObj.source} confidence={fieldObj.confidence} />
         </td>
@@ -35,7 +35,7 @@ export default function ReviewStep() {
             style={{
               padding: '6px 10px',
               fontSize: '0.8125rem',
-              borderColor: reviewFields[path] !== undefined ? 'var(--accent-lime)' : 'rgba(49, 130, 206, 0.2)',
+              borderColor: reviewFields[path] !== undefined ? 'var(--accent-lime)' : 'rgba(var(--c-blue), 0.2)',
             }}
           />
         </td>
@@ -45,7 +45,7 @@ export default function ReviewStep() {
 
   if (!savedProject) {
     return (
-      <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: '#94a3b8', maxWidth: 640, margin: '0 auto' }}>
+      <div className="glass-panel" style={{ padding: 40, textAlign: 'center', color: 'var(--text-tertiary)', maxWidth: 640, margin: '0 auto' }}>
         Nothing to review yet -- go back and generate an estimate first.
       </div>
     )
@@ -56,10 +56,10 @@ export default function ReviewStep() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div>
           <span className="badge badge-cyan" style={{ fontSize: '0.65rem', marginBottom: 6, display: 'inline-block' }}>Step 4 of 5</span>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>
             Review estimated fields
           </h2>
-          <p style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: 2 }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', marginTop: 2 }}>
             Every field's origin is tracked. Overwriting a value marks it as user-entered (100% confidence).
           </p>
         </div>
@@ -74,7 +74,7 @@ export default function ReviewStep() {
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid rgba(49, 130, 206, 0.15)', color: '#3182CE', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            <tr style={{ borderBottom: '1px solid rgba(var(--c-blue), 0.15)', color: 'var(--accent-lime)', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               <th style={{ padding: '8px 14px' }}>Field</th>
               <th style={{ padding: '8px 14px' }}>Source & Confidence</th>
               <th style={{ padding: '8px 14px' }}>Value (Editable)</th>

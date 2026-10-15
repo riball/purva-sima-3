@@ -33,7 +33,7 @@ export default function CompareBars({ items = [], height = 150 }) {
                 transition: 'height 0.4s ease',
               }}
             />
-            <span style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 8, textAlign: 'center' }}>{it.label}</span>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', marginTop: 8, textAlign: 'center' }}>{it.label}</span>
           </div>
         )
       })}

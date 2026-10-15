@@ -36,7 +36,7 @@ export default function LandingPage({ onNavigate }) {
           color: 'var(--text-primary)'
         }}>
           From BOQ to Carbon — <br />
-          <span style={{ color: '#90EE90' }}>Know the Impact Before You Build.</span>
+          <span style={{ color: 'var(--accent-green-light)' }}>Know the Impact Before You Build.</span>
         </h1>
 
         <p style={{ 
@@ -93,7 +93,7 @@ export default function LandingPage({ onNavigate }) {
         zIndex: 0,
         pointerEvents: 'none',
         overflow: 'hidden',
-        background: '#0B2B26'
+        background: 'var(--bg-primary)'
       }}>
         <video 
           autoPlay 
@@ -123,7 +123,7 @@ export default function LandingPage({ onNavigate }) {
         inset: 0,
         zIndex: 1,
         pointerEvents: 'none',
-        background: 'radial-gradient(circle at 50% 50%, rgba(11, 43, 38, 0.1) 0%, rgba(11, 43, 38, 0.5) 100%)'
+        background: 'radial-gradient(circle at 50% 50%, rgba(var(--c-bg), 0.1) 0%, rgba(var(--c-bg), 0.5) 100%)'
       }} />
     </div>
   )

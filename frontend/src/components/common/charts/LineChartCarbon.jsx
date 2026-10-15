@@ -22,7 +22,7 @@ export default function LineChartCarbon({ points = [], baselineTonnes = null, he
 
   if (!points || points.length === 0) {
     return (
-      <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center', padding: 20 }}>
+      <div style={{ height, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem', textAlign: 'center', padding: 20 }}>
         No bills logged yet — this timeline appears after the first one.
       </div>
     )
@@ -49,8 +49,8 @@ export default function LineChartCarbon({ points = [], baselineTonnes = null, he
         <g transform={`translate(${PAD.left}, ${PAD.top})`}>
           {tickVals.map((t, i) => (
             <g key={i}>
-              <line x1={0} x2={innerW} y1={yFor(t)} y2={yFor(t)} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
-              <text x={-10} y={yFor(t)} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="#64748b">
+              <line x1={0} x2={innerW} y1={yFor(t)} y2={yFor(t)} stroke="rgba(var(--c-overlay),0.06)" strokeWidth={1} />
+              <text x={-10} y={yFor(t)} textAnchor="end" dominantBaseline="middle" fontSize={10} fill="var(--text-muted)">
                 {t.toFixed(0)}
               </text>
             </g>
@@ -58,20 +58,20 @@ export default function LineChartCarbon({ points = [], baselineTonnes = null, he
 
           {baselineTonnes != null && (
             <>
-              <line x1={0} x2={innerW} y1={yFor(baselineTonnes)} y2={yFor(baselineTonnes)} stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="5 4" />
-              <text x={innerW} y={Math.max(yFor(baselineTonnes) - 6, 10)} textAnchor="end" fontSize={10} fill="#f59e0b" fontWeight={600}>
+              <line x1={0} x2={innerW} y1={yFor(baselineTonnes)} y2={yFor(baselineTonnes)} stroke="var(--accent-amber)" strokeWidth={1.5} strokeDasharray="5 4" />
+              <text x={innerW} y={Math.max(yFor(baselineTonnes) - 6, 10)} textAnchor="end" fontSize={10} fill="var(--accent-amber)" fontWeight={600}>
                 Baseline · {baselineTonnes.toFixed(0)} t
               </text>
             </>
           )}
 
-          <path d={linePath} fill="none" stroke="#3182CE" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={linePath} fill="none" stroke="var(--accent-lime)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
           {values.map((v, i) => (
             <circle
               key={`pt-${i}`}
               cx={xFor(i)} cy={yFor(v)} r={hoverIdx === i ? 6 : 4}
-              fill="#0B2B26" stroke="#3182CE" strokeWidth={2}
+              fill="var(--bg-primary)" stroke="var(--accent-lime)" strokeWidth={2}
             />
           ))}
 
@@ -85,11 +85,11 @@ export default function LineChartCarbon({ points = [], baselineTonnes = null, he
             />
           ))}
 
-          <text x={0} y={innerH + 20} fontSize={10} fill="#64748b" textAnchor="start">
+          <text x={0} y={innerH + 20} fontSize={10} fill="var(--text-muted)" textAnchor="start">
             {new Date(points[0].billed_date).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
           </text>
           {points.length > 1 && (
-            <text x={innerW} y={innerH + 20} fontSize={10} fill="#64748b" textAnchor="end">
+            <text x={innerW} y={innerH + 20} fontSize={10} fill="var(--text-muted)" textAnchor="end">
               {new Date(points[points.length - 1].billed_date).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
             </text>
           )}
@@ -103,21 +103,21 @@ export default function LineChartCarbon({ points = [], baselineTonnes = null, he
             left: `${((PAD.left + xFor(hoverIdx)) / WIDTH) * 100}%`,
             top: 4,
             transform: 'translateX(-50%)',
-            background: 'rgba(8,15,10,0.95)',
-            border: '1px solid rgba(49,130,206,0.35)',
+            background: 'rgba(var(--c-surf-6),0.95)',
+            border: '1px solid rgba(var(--c-blue),0.35)',
             borderRadius: 8,
             padding: '6px 10px',
             fontSize: 11,
-            color: '#f8fafc',
+            color: 'var(--text-primary)',
             whiteSpace: 'nowrap',
             pointerEvents: 'none',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+            boxShadow: '0 6px 18px rgba(var(--c-black),0.4)',
             zIndex: 5,
           }}
         >
           <div style={{ fontWeight: 700 }}>{points[hoverIdx].period}</div>
-          <div style={{ color: '#94a3b8' }}>{points[hoverIdx].billed_date}</div>
-          <div style={{ color: '#3182CE', fontWeight: 600 }}>{values[hoverIdx].toFixed(1)} tCO₂e</div>
+          <div style={{ color: 'var(--text-tertiary)' }}>{points[hoverIdx].billed_date}</div>
+          <div style={{ color: 'var(--accent-lime)', fontWeight: 600 }}>{values[hoverIdx].toFixed(1)} tCO₂e</div>
         </div>
       )}
     </div>

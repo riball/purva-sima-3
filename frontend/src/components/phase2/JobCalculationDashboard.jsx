@@ -22,10 +22,10 @@ const FLOOR_AREA_BASIS_LABELS = {
   other: 'Other basis',
 }
 
-const thStyle = { textAlign: 'left', padding: '8px 10px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.66rem', letterSpacing: '0.04em' }
+const thStyle = { textAlign: 'left', padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', fontSize: '0.66rem', letterSpacing: '0.04em' }
 const thStyleRight = { ...thStyle, textAlign: 'right' }
-const tdStyle = { padding: '8px 10px', color: '#cbd5e1' }
-const tdStyleRight = { ...tdStyle, textAlign: 'right', color: '#f8fafc', fontWeight: 600, whiteSpace: 'nowrap' }
+const tdStyle = { padding: '8px 10px', color: 'var(--text-secondary)' }
+const tdStyleRight = { ...tdStyle, textAlign: 'right', color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }
 
 /**
  * UX refinement: "after the upload i want to view the details of the
@@ -75,7 +75,7 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         position: 'fixed',
         inset: 0,
         zIndex: 2100,
-        background: 'rgba(0, 0, 0, 0.8)',
+        background: 'rgba(var(--c-black), 0.8)',
         backdropFilter: 'blur(8px)',
         display: 'flex',
         alignItems: 'center',
@@ -92,12 +92,12 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22, gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(49,130,206,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#3182CE', flexShrink: 0 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(var(--c-blue),0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-lime)', flexShrink: 0 }}>
               {isBoq ? <FileSpreadsheet size={20} /> : <FileText size={20} />}
             </div>
             <div>
               <span className="badge badge-mint" style={{ fontSize: '0.65rem' }}>{isBoq ? 'Bill of Quantities' : 'Work Order'}</span>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f8fafc', marginTop: 4 }}>{job.source_filename}</h3>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>{job.source_filename}</h3>
             </div>
           </div>
           <button onClick={onClose} className="btn-secondary" style={{ fontSize: '0.75rem', padding: '6px 10px', flexShrink: 0 }}>
@@ -132,17 +132,17 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
           <div
             style={{
               fontSize: '0.78rem',
-              color: '#94a3b8',
+              color: 'var(--text-tertiary)',
               marginBottom: 20,
               padding: '10px 14px',
-              background: 'rgba(49,130,206,0.06)',
-              border: '1px solid rgba(49,130,206,0.15)',
+              background: 'rgba(var(--c-blue),0.06)',
+              border: '1px solid rgba(var(--c-blue),0.15)',
               borderRadius: 'var(--radius-md)',
               lineHeight: 1.5,
             }}
           >
             Carbon-per-area figures above are divided by{' '}
-            <strong style={{ color: '#f8fafc' }}>{result.floor_area_sqm.toLocaleString()} m²</strong>{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{result.floor_area_sqm.toLocaleString()} m²</strong>{' '}
             ({FLOOR_AREA_BASIS_LABELS[result.floor_area_basis] || result.floor_area_basis || 'basis not specified'})
             {result.floor_area_basis_note ? ` — ${result.floor_area_basis_note}` : ''}
           </div>
@@ -151,18 +151,18 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         {/* Coverage + material breakdown */}
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(200px, 300px) 1fr', gap: 28, marginBottom: 22 }}>
           <div>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>Coverage</h4>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>Coverage</h4>
             {result.coverage ? (
               <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <RadialGauge percentage={result.coverage.coverage_pct} size={96} strokeWidth={8} label="Total Value" color="#3182CE" />
-                <RadialGauge percentage={result.coverage.top5_coverage_pct} size={96} strokeWidth={8} label="Top 5 Materials" color="#38bdf8" />
+                <RadialGauge percentage={result.coverage.coverage_pct} size={96} strokeWidth={8} label="Total Value" color="var(--accent-lime)" />
+                <RadialGauge percentage={result.coverage.top5_coverage_pct} size={96} strokeWidth={8} label="Top 5 Materials" color="var(--accent-cyan)" />
               </div>
             ) : (
-              <p style={{ fontSize: '0.78rem', color: '#64748b' }}>No coverage data for this result.</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>No coverage data for this result.</p>
             )}
           </div>
           <div>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', marginBottom: 14 }}>Material-Wise Carbon Contribution</h4>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>Material-Wise Carbon Contribution</h4>
             <CategoryBarChart categories={result.by_category} />
           </div>
         </div>
@@ -170,15 +170,15 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         {/* Honesty audit -- what wasn't computed, and why */}
         {result.coverage?.excluded_by_reason?.length > 0 && (
           <div style={{ marginBottom: 22 }}>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', marginBottom: 10 }}>What Wasn't Computed, and Why</h4>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>What Wasn't Computed, and Why</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {result.coverage.excluded_by_reason.map((ex) => (
                 <div
                   key={ex.reason}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.78rem', padding: '8px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}
+                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.78rem', padding: '8px 12px', background: 'rgba(var(--c-overlay),0.03)', borderRadius: 'var(--radius-sm)' }}
                 >
-                  <span style={{ color: '#94a3b8' }}>{REASON_LABELS[ex.reason] || ex.reason}</span>
-                  <span style={{ color: '#f8fafc', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  <span style={{ color: 'var(--text-tertiary)' }}>{REASON_LABELS[ex.reason] || ex.reason}</span>
+                  <span style={{ color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                     {ex.line_item_count} line{ex.line_item_count === 1 ? '' : 's'} · ₹{ex.value_excluded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                   </span>
                 </div>
@@ -190,13 +190,13 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         {/* Top contributing line items */}
         {topLines.length > 0 && (
           <div>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#f8fafc', marginBottom: 10 }}>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
               Top {topLines.length} Contributing Line Items
             </h4>
-            <div style={{ overflowX: 'auto', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 'var(--radius-md)' }}>
+            <div style={{ overflowX: 'auto', border: '1px solid rgba(var(--c-overlay),0.06)', borderRadius: 'var(--radius-md)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+                  <tr style={{ borderBottom: '1px solid rgba(var(--c-overlay),0.08)' }}>
                     <th style={thStyle}>Description</th>
                     <th style={thStyle}>Category</th>
                     <th style={thStyleRight}>Quantity</th>
@@ -209,7 +209,7 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
                     const category = li.category || li.material_category || '—'
                     const uom = li.uom || li.unit || ''
                     return (
-                      <tr key={idx} style={{ borderBottom: idx === topLines.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.04)' }}>
+                      <tr key={idx} style={{ borderBottom: idx === topLines.length - 1 ? 'none' : '1px solid rgba(var(--c-overlay),0.04)' }}>
                         <td style={tdStyle}>{description}</td>
                         <td style={{ ...tdStyle, textTransform: 'capitalize' }}>{category.replace(/_/g, ' ')}</td>
                         <td style={tdStyleRight}>{li.qty != null ? li.qty.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} {uom}</td>

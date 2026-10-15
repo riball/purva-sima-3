@@ -24,7 +24,11 @@ export default function WizardProgress() {
   const currentIdx = STEPS.indexOf(step)
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 24 }}>
+    // wizard-progress-steps class (index.css) makes this row horizontally
+    // scrollable under 640px instead of clipping -- five whiteSpace:nowrap
+    // labels in a non-wrapping flex row overflowed by ~163px at a 390px
+    // viewport, with "Results" clipped off-screen entirely before this fix.
+    <div className="wizard-progress-steps" style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 24 }}>
       {STEPS.map((s, idx) => {
         const isDone = idx < currentIdx
         const isActive = idx === currentIdx
@@ -60,9 +64,9 @@ export default function WizardProgress() {
                   fontSize: '0.7rem',
                   fontWeight: 700,
                   flexShrink: 0,
-                  background: isActive ? 'var(--accent-lime)' : isDone ? 'rgba(49, 130, 206, 0.25)' : 'rgba(255,255,255,0.06)',
-                  color: isActive ? '#0B2B26' : isDone ? '#3182CE' : '#64748b',
-                  border: isActive ? 'none' : '1px solid rgba(255,255,255,0.08)',
+                  background: isActive ? 'var(--accent-lime)' : isDone ? 'rgba(var(--c-blue), 0.25)' : 'rgba(var(--c-overlay),0.06)',
+                  color: isActive ? 'var(--bg-primary)' : isDone ? 'var(--accent-lime)' : 'var(--text-muted)',
+                  border: isActive ? 'none' : '1px solid rgba(var(--c-overlay),0.08)',
                 }}
               >
                 {isDone ? <Check size={13} /> : idx + 1}
@@ -71,7 +75,7 @@ export default function WizardProgress() {
                 style={{
                   fontSize: '0.8125rem',
                   fontWeight: isActive ? 700 : 500,
-                  color: isActive ? '#f8fafc' : isDone ? '#cbd5e1' : '#64748b',
+                  color: isActive ? 'var(--text-primary)' : isDone ? 'var(--text-secondary)' : 'var(--text-muted)',
                   whiteSpace: 'nowrap',
                 }}
               >
@@ -79,7 +83,7 @@ export default function WizardProgress() {
               </span>
             </button>
             {idx < STEPS.length - 1 && (
-              <div style={{ flex: 1, height: 1, background: idx < currentIdx ? 'rgba(49, 130, 206, 0.4)' : 'rgba(255,255,255,0.08)', minWidth: 16 }} />
+              <div style={{ flex: 1, height: 1, background: idx < currentIdx ? 'rgba(var(--c-blue), 0.4)' : 'rgba(var(--c-overlay),0.08)', minWidth: 16 }} />
             )}
           </React.Fragment>
         )

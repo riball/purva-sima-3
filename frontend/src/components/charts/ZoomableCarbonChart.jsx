@@ -7,7 +7,7 @@ import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLin
  * a Recharts <ComposedChart> + <Brush> -- the brush handle underneath the
  * chart lets the user drag to zoom into any date range and drag back out,
  * exactly like a stock ticker's range selector. Kept to the existing dark
- * palette: --accent-mint (#3182CE) for the one real measured series,
+ * palette: --accent-mint (var(--accent-lime)) for the one real measured series,
  * --accent-amber for the fixed baseline reference line, thin 2px strokes,
  * a dark tooltip that matches the app chrome.
  *
@@ -85,7 +85,7 @@ export default function ZoomableCarbonChart({
 
   if (!points || points.length === 0) {
     return (
-      <div style={{ height: heightStyle, minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '0.8125rem', textAlign: 'center', padding: 20 }}>
+      <div style={{ height: heightStyle, minHeight: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem', textAlign: 'center', padding: 20 }}>
         {emptyMessage}
       </div>
     )
@@ -110,7 +110,7 @@ export default function ZoomableCarbonChart({
   // Only show the brush (zoom control) once there's actually a range
   // worth narrowing -- with <=3 points the whole chart already fits.
   const showBrush = data.length > 3
-  const projectedColor = isExceedingBaseline ? '#f43f5e' : '#84cc16'
+  const projectedColor = isExceedingBaseline ? 'var(--accent-rose)' : 'var(--accent-lime-green)'
 
   // Explicit Y-axis domain, rather than relying on Recharts'
   // ifOverflow="extendDomain" to auto-stretch the axis for us -- that
@@ -136,25 +136,25 @@ export default function ZoomableCarbonChart({
           style={{
             display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
             marginBottom: 12, padding: '8px 12px', borderRadius: 'var(--radius-md, 8px)',
-            background: 'rgba(49, 130, 206, 0.06)', border: '1px solid rgba(49, 130, 206, 0.14)',
+            background: 'rgba(var(--c-blue), 0.06)', border: '1px solid rgba(var(--c-blue), 0.14)',
             fontSize: '0.78rem',
           }}
         >
-          <span style={{ color: '#f8fafc', fontWeight: 600 }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
             {billStatus.percentComplete != null ? `${billStatus.percentComplete.toFixed(1)}% complete` : 'No bills logged yet'}
           </span>
           {billStatus.percentCompleteSource && (
-            <span style={{ color: '#64748b' }}>({billStatus.percentCompleteSource.replace(/_/g, ' ')})</span>
+            <span style={{ color: 'var(--text-muted)' }}>({billStatus.percentCompleteSource.replace(/_/g, ' ')})</span>
           )}
           {billStatus.latestPeriod && (
             <>
-              <span style={{ color: '#334155' }}>•</span>
-              <span style={{ color: '#94a3b8' }}>Latest bill: {billStatus.latestPeriod}</span>
+              <span style={{ color: 'var(--border-slate)' }}>•</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>Latest bill: {billStatus.latestPeriod}</span>
             </>
           )}
           {billStatus.projectedVsBaselinePct != null && (
             <>
-              <span style={{ color: '#334155' }}>•</span>
+              <span style={{ color: 'var(--border-slate)' }}>•</span>
               <span style={{ color: projectedColor, fontWeight: 600 }}>
                 {billStatus.projectedVsBaselinePct > 0 ? '+' : ''}
                 {billStatus.projectedVsBaselinePct.toFixed(1)}% vs baseline at this pace
@@ -184,11 +184,11 @@ export default function ZoomableCarbonChart({
               positive left margin instead of a negative one, so a
               6-digit tick still fits with room to spare. */}
           <ComposedChart data={data} margin={{ top: 10, right: 16, left: 4, bottom: 0 }}>
-            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-            <XAxis dataKey="dateLabel" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={{ stroke: 'rgba(255,255,255,0.1)' }} tickLine={false} />
+            <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" vertical={false} />
+            <XAxis dataKey="dateLabel" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={{ stroke: 'rgba(var(--c-overlay),0.1)' }} tickLine={false} />
             <YAxis
               domain={yDomain}
-              tick={{ fontSize: 10, fill: '#64748b' }}
+              tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
               axisLine={false}
               tickLine={false}
               width={64}
@@ -200,10 +200,10 @@ export default function ZoomableCarbonChart({
               <ReferenceLine
                 y={baselineTonnes}
                 ifOverflow="extendDomain"
-                stroke="#f59e0b"
+                stroke="var(--accent-amber)"
                 strokeWidth={1.5}
                 strokeDasharray="5 4"
-                label={{ value: `Baseline · ${baselineTonnes.toFixed(0)} t`, position: 'insideTopRight', fill: '#f59e0b', fontSize: 10, fontWeight: 600 }}
+                label={{ value: `Baseline · ${baselineTonnes.toFixed(0)} t`, position: 'insideTopRight', fill: 'var(--accent-amber)', fontSize: 10, fontWeight: 600 }}
               />
             )}
 
@@ -222,10 +222,10 @@ export default function ZoomableCarbonChart({
               type="monotone"
               dataKey="tonnes"
               name="Billed cumulative"
-              stroke="#3182CE"
+              stroke="var(--accent-lime)"
               strokeWidth={2}
               dot={(dotProps) => (
-                <ClickableDot {...dotProps} key={`dot-${dotProps.payload?.period}`} fillColor="#0B2B26" strokeColor="#3182CE" radius={4} onPointClick={onPointClick} />
+                <ClickableDot {...dotProps} key={`dot-${dotProps.payload?.period}`} fillColor="var(--bg-primary)" strokeColor="var(--accent-lime)" radius={4} onPointClick={onPointClick} />
               )}
               activeDot={{ r: 6 }}
               connectNulls={false}
@@ -236,10 +236,10 @@ export default function ZoomableCarbonChart({
               <ReferenceLine
                 y={proposedTonnes}
                 ifOverflow="extendDomain"
-                stroke="#a78bfa"
+                stroke="var(--accent-violet)"
                 strokeWidth={1.5}
                 strokeDasharray="4 3"
-                label={{ value: `Proposed · ${proposedTonnes.toFixed(0)} t`, position: 'insideBottomRight', fill: '#a78bfa', fontSize: 10, fontWeight: 600 }}
+                label={{ value: `Proposed · ${proposedTonnes.toFixed(0)} t`, position: 'insideBottomRight', fill: 'var(--accent-violet)', fontSize: 10, fontWeight: 600 }}
               />
             )}
 
@@ -248,7 +248,7 @@ export default function ZoomableCarbonChart({
                 type="monotone"
                 dataKey="ghostTonnes"
                 name="Proposed (not yet confirmed)"
-                stroke="#a78bfa"
+                stroke="var(--accent-violet)"
                 strokeWidth={2}
                 strokeDasharray="6 4"
                 dot={false}
@@ -261,8 +261,8 @@ export default function ZoomableCarbonChart({
               <Brush
                 dataKey="dateLabel"
                 height={22}
-                stroke="#3182CE"
-                fill="rgba(49, 130, 206, 0.06)"
+                stroke="var(--accent-lime)"
+                fill="rgba(var(--c-blue), 0.06)"
                 travellerWidth={8}
                 tickFormatter={() => ''}
               />
@@ -271,14 +271,14 @@ export default function ZoomableCarbonChart({
         </ResponsiveContainer>
       </div>
 
-      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.72rem', color: '#94a3b8', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 16, marginTop: 8, fontSize: '0.72rem', color: 'var(--text-tertiary)', flexWrap: 'wrap' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ width: 14, height: 2, background: '#3182CE', display: 'inline-block', borderRadius: 2 }} />
+          <span style={{ width: 14, height: 2, background: 'var(--accent-lime)', display: 'inline-block', borderRadius: 2 }} />
           Billed cumulative
         </span>
         {baselineTonnes != null && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 14, height: 0, borderTop: '2px dashed #f59e0b', display: 'inline-block' }} />
+            <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--accent-amber)', display: 'inline-block' }} />
             Baseline (set previously)
           </span>
         )}
@@ -290,12 +290,12 @@ export default function ZoomableCarbonChart({
         )}
         {(proposedTonnes != null || ghostPoints) && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 14, height: 0, borderTop: '2px dashed #a78bfa', display: 'inline-block' }} />
+            <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--accent-violet)', display: 'inline-block' }} />
             Proposed (unconfirmed)
           </span>
         )}
-        {onPointClick && <span style={{ color: '#64748b' }}>Click a point to remove that bill</span>}
-        {showBrush && <span style={{ color: '#64748b' }}>Drag the handles below the chart to zoom into a date range</span>}
+        {onPointClick && <span style={{ color: 'var(--text-muted)' }}>Click a point to remove that bill</span>}
+        {showBrush && <span style={{ color: 'var(--text-muted)' }}>Drag the handles below the chart to zoom into a date range</span>}
       </div>
     </div>
   )
@@ -331,22 +331,22 @@ function ChartTooltip({ active, payload }) {
   return (
     <div
       style={{
-        background: 'rgba(8,15,10,0.95)',
-        border: '1px solid rgba(49,130,206,0.35)',
+        background: 'rgba(var(--c-surf-6),0.95)',
+        border: '1px solid rgba(var(--c-blue),0.35)',
         borderRadius: 8,
         padding: '8px 12px',
         fontSize: 11,
-        color: '#f8fafc',
-        boxShadow: '0 6px 18px rgba(0,0,0,0.4)',
+        color: 'var(--text-primary)',
+        boxShadow: '0 6px 18px rgba(var(--c-black),0.4)',
       }}
     >
       <div style={{ fontWeight: 700 }}>{row.period}</div>
-      <div style={{ color: '#94a3b8' }}>{row.billedDate}</div>
-      <div style={{ color: '#3182CE', fontWeight: 600 }}>
+      <div style={{ color: 'var(--text-tertiary)' }}>{row.billedDate}</div>
+      <div style={{ color: 'var(--accent-lime)', fontWeight: 600 }}>
         {row.tonnes != null ? row.tonnes.toFixed(1) : '-'} tCO₂e
       </div>
       {row.ghostTonnes != null && (
-        <div style={{ color: '#a78bfa', fontWeight: 600 }}>{row.ghostTonnes.toFixed(1)} tCO₂e (proposed)</div>
+        <div style={{ color: 'var(--accent-violet)', fontWeight: 600 }}>{row.ghostTonnes.toFixed(1)} tCO₂e (proposed)</div>
       )}
     </div>
   )
