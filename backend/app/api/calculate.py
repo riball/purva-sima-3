@@ -1,0 +1,70 @@
+"""Calculation endpoint -- runs the full results pipeline (carbon, cost,
+typical-building benchmark) for a project that's already been submitted
+via POST /form (and optionally edited via PATCH /form/{project_id}).
+
+Deliberately does NOT re-run BOQ matching or LLM fallback -- those
+already ran at form-submission time and any subsequent user edits via
+PATCH take priority. This endpoint only computes results from whatever
+state the project is currently saved in.
+
+The GRIHA V6.0 Criterion 21 point estimate (griha_criterion21.py) has
+been removed from this response entirely, per product decision -- it is
+no longer computed or exposed anywhere in this pipeline.
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from app.services import company_store, project_store
+from app.services.calculation_engine import MAX_GFA_SQM, CalculationResult, calculate_embodied_carbon
+from app.services.cost_estimation import CostEstimate, estimate_cost
+from app.services.benchmark import BenchmarkResult, compute_benchmark
+
+router = APIRouter()
+
+
+class CalculateResponse(BaseModel):
+    project_id: str
+    carbon: CalculationResult
+    cost: CostEstimate
+    benchmark: BenchmarkResult
+
+
+@router.post("/calculate/{project_id}", response_model=CalculateResponse)
+def calculate(project_id: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> CalculateResponse:
+    # company_id is for LOOKUP only (Workstream 04) -- estimate_cost()
+    # and every other call below reads the loaded project's own
+    # company_id field, not this parameter.
+    project = project_store.load_project(project_id, company_id=company_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail=f"No project found with id '{project_id}'")
+
+    # Mirrors calculation_engine.calculate_embodied_carbon's own guard
+    # exactly (gfa is None or gfa <= 0) -- that function raises a plain
+    # ValueError, which nothing catches, so a zero or negative GFA (e.g.
+    # a blank/garbage PATCH, or a project that was never fully filled
+    # in) used to reach it and surface as an unhandled 500 instead of a
+    # clean 400. Reproduced live: PATCHing gfa_sqm to 0 and calling this
+    # endpoint crashed with "ValueError: Cannot calculate without a
+    # valid GFA" before this fix.
+    gfa = project.mandatory.gfa_sqm.value
+    if gfa is None or gfa <= 0:
+        raise HTTPException(status_code=400, detail="Cannot calculate without a valid GFA")
+    if gfa > MAX_GFA_SQM:
+        raise HTTPException(
+            status_code=400,
+            detail=f"GFA of {gfa:,.0f} sqm exceeds the sanity ceiling of {MAX_GFA_SQM:,} sqm -- check for a data-entry error",
+        )
+
+    carbon_result = calculate_embodied_carbon(project)
+    cost_result = estimate_cost(project, carbon_result)
+    benchmark_result = compute_benchmark(project, carbon_result)
+
+    return CalculateResponse(
+        project_id=project_id,
+        carbon=carbon_result,
+        cost=cost_result,
+        benchmark=benchmark_result,
+    )

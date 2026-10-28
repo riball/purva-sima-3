@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# Secrets -- never commit these. backend/.env currently holds a live
+# GROQ_API_KEY; keeping it out of git from the start (this repo has no prior
+# history) means it never ends up in a commit that would need to be scrubbed
+# later. Copy frontend/.env.example -> frontend/.env locally if you need one
+# there too; that pattern stays untracked the same way.
+**/.env
+!**/.env.example
+
+# ---------------------------------------------------------------------------
+# Python (backend)
+backend/venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---------------------------------------------------------------------------
+# Node (frontend) -- frontend/.gitignore already covers these for that
+# folder; repeated here so the root file is self-sufficient too.
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ---------------------------------------------------------------------------
+# Application runtime data (generated, not source code).
+#
+# backend/app/data/companies/ is this app's live per-company database --
+# project registries, Phase 1 records, Phase 3 baselines, logged bills, and
+# background-job results (backend/app/services/company_store.py). It's
+# mutable state that grows every time someone uses the app, it contains real
+# client project data (e.g. "Ecopolitan"), and some of these result files run
+# multiple MB each -- none of which belongs in source control. The static
+# reference datasets that ship WITH the app (cea_baseline/, ice_db/,
+# reference_boqs/, work_orders/, canonical_material_categories.json) are
+# deliberately NOT matched by this rule and stay tracked as normal.
+backend/app/data/companies/
+backend/app/data/companies_registry.json
+
+# Root-level sample/uploaded documents (real Certificate-of-Payment bill
+# PDFs) -- same reasoning: real project documents, not source code.
+/data/

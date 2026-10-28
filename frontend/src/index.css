@@ -1,0 +1,921 @@
+/* ==========================================================================
+   SIMA CARBONOS DESIGN SYSTEM
+   Aesthetics: architectural editorial SaaS -- quiet, authoritative,
+   mathematically grounded. Flat surfaces, hairline borders, no glow/glass.
+   Typography: Plus Jakarta Sans / Manrope (display), DM Sans (body),
+   DM Mono tabular numerals for data.
+
+   Mechanism carried over unchanged from the previous theme system: this
+   :root block is the DARK theme and the default (no data-theme attribute
+   needed); a parallel `:root[data-theme="light"]` block below overrides
+   only what needs to flip for the warm-beige light surface. Every
+   component class name below (.glass-panel, .btn-primary, .badge-*,
+   .form-*, etc.) is unchanged from before on purpose -- existing
+   components keep working, only the token *values* (and, where the new
+   flat aesthetic genuinely requires it, a couple of visual-effect rules
+   like backdrop blur) have changed.
+   ========================================================================== */
+
+:root {
+  /* Backgrounds -- named after the design's own vocabulary (canvas / surface
+     / subtle), re-mapped onto the pre-existing primary/secondary/tertiary
+     slots so every component that already reads --bg-* just works. */
+  --bg-primary: #0E1410;   /* canvas */
+  --bg-secondary: #151E18; /* surface -- cards, sidebar, top bar sit on this */
+  --bg-tertiary: #1B261F;  /* subtle -- hover washes, secondary panels */
+
+  --border-color: #24352A;
+  --border-subtle: #1D2A21;
+
+  /* Flat "glass" surfaces -- deliberately opaque, no blur, to match the
+     design's flat architectural-editorial aesthetic (no glassmorphism in
+     the source design anywhere). Class names kept for compatibility. */
+  --glass-bg: var(--bg-secondary);
+  --glass-bg-hover: var(--bg-tertiary);
+  --glass-bg-elevated: var(--bg-secondary);
+  --glass-border: var(--border-color);
+  --glass-border-hover: rgba(77, 154, 117, 0.45);
+  --glass-border-active: #387D5D;
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+
+  /* Brand */
+  --brand-primary: #387D5D;
+  --brand-dark: #14281E;
+  --brand-light: #4D9A75;
+  --brand-surface: #192E23;
+  --brand-sage: #75A383;
+
+  /* Semantic status */
+  --color-warning: #F59E0B;
+  --color-warning-subtle: #2E2007;
+  --color-danger: #EF4444;
+  --color-danger-subtle: #331313;
+  --color-success: #22C55E;
+  --color-success-subtle: #0F2E19;
+  --color-info: #3B82F6;
+  --color-info-subtle: #102142;
+
+  /* Accents -- mapped from the old rainbow-accent vocabulary onto the new
+     palette's brand + semantic colors, plus two additional architectural
+     hues (clay, slate) for charts that need more than 5 distinguishable
+     series (e.g. CarbonDataExplorer's cumulative/present/baseline/
+     projected/proposed). NOTE for Phase 1: re-validate this categorical
+     set with the dataviz skill's palette validator once the chart legend
+     is actually rebuilt -- these are reasonable placeholders, not yet
+     CVD-checked. */
+  --accent-lime: #387D5D;       /* brand primary -- "cumulative" / primary series */
+  --accent-lime-hover: #4D9A75;
+  --accent-lime-dim: #2C6349;
+  --accent-lime-glow: transparent;
+
+  --accent-mint: #75A383;       /* brand sage -- secondary series */
+  --accent-mint-dim: #567C62;
+  --accent-mint-glow: transparent;
+
+  --accent-amber: #F59E0B;      /* baseline / warning */
+  --accent-amber-glow: transparent;
+  --accent-amber-light: #FBBF24;
+
+  --accent-cyan: #3B82F6;       /* info / projected */
+  --accent-cyan-glow: transparent;
+  --accent-skyblue: #7DB3FB;
+
+  --accent-rose: #EF4444;       /* danger / flagged */
+  --accent-rose-light: #FB7185;
+
+  --accent-violet: #B08968;     /* clay -- proposed / 5th series */
+  --accent-violet-light: #C7A587;
+  --accent-emerald: #22C55E;    /* success */
+  --accent-lime-green: #22C55E;
+  --accent-green-light: #86EFAC;
+  --accent-orange: #C97712;
+  --border-slate: #2C3A33;
+
+  /* RGB triples (no "rgba(" wrapper) -- unchanged mechanism */
+  --c-black: 0, 0, 0;
+  --c-white: 255, 255, 255;
+  --c-overlay: 255, 255, 255;
+  --c-blue: 59, 130, 246;
+  --c-blue-dim: 44, 99, 73;
+  --c-amber: 245, 158, 11;
+  --c-rose: 239, 68, 68;
+  --c-cyan: 59, 130, 246;
+  --c-violet: 176, 137, 104;
+  --c-lime-green: 34, 197, 94;
+  --c-bg: 14, 20, 16;
+  --c-surf-1: 21, 30, 24;
+  --c-surf-2: 21, 30, 24;
+  --c-surf-3: 27, 38, 31;
+  --c-surf-4: 29, 42, 33;
+  --c-surf-5: 24, 35, 28;
+  --c-surf-6: 18, 26, 20;
+  --c-surf-7: 20, 29, 23;
+
+  /* Typography */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: 'Manrope', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-body: 'DM Sans', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --text-primary: #EEF3EF;
+  --text-secondary: #9EB0A3;
+  --text-tertiary: #9EB0A3;
+  --text-muted: #6C7E72;
+  --text-dim: #576358;
+  --text-emerald: #75A383;
+
+  /* Form Elements */
+  --input-bg: var(--bg-tertiary);
+  --input-border: var(--border-color);
+  --input-border-focus: #387D5D;
+  --input-focus-glow: 0 0 0 3px rgba(56, 125, 93, 0.18);
+
+  /* Radius -- slightly less rounded than before: architectural, not soft */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   LIGHT THEME -- the design's "warm beige" light mode.
+   Applied when <html data-theme="light">.
+   ========================================================================== */
+:root[data-theme="light"] {
+  --bg-primary: #EDE7DC;   /* canvas */
+  --bg-secondary: #FAF7F2; /* surface */
+  --bg-tertiary: #E4DCCF;  /* subtle */
+
+  --border-color: #D6CEBD;
+  --border-subtle: #DFD8CB;
+
+  --glass-bg: var(--bg-secondary);
+  --glass-bg-hover: var(--bg-tertiary);
+  --glass-bg-elevated: #FFFFFF;
+  --glass-border: var(--border-color);
+  --glass-border-hover: rgba(33, 75, 55, 0.35);
+  --glass-border-active: #214B37;
+  --glass-shadow: 0 1px 2px rgba(21, 34, 25, 0.06);
+
+  --brand-primary: #214B37;
+  --brand-dark: #183A2B;
+  --brand-light: #2C6349;
+  --brand-surface: #DFEAE2;
+  --brand-sage: #567C62;
+
+  --color-warning: #C97712;
+  --color-warning-subtle: #FDF3E3;
+  --color-danger: #C53030;
+  --color-danger-subtle: #FDE8E8;
+  --color-success: #1E7E49;
+  --color-success-subtle: #E2F4EA;
+  --color-info: #1E5C9A;
+  --color-info-subtle: #E5EFF9;
+
+  --accent-lime: #214B37;
+  --accent-lime-hover: #2C6349;
+  --accent-lime-dim: #183A2B;
+  --accent-mint: #567C62;
+  --accent-mint-dim: #3F5E4B;
+  --accent-amber: #C97712;
+  --accent-amber-light: #E09434;
+  --accent-cyan: #1E5C9A;
+  --accent-skyblue: #4E85BE;
+  --accent-rose: #C53030;
+  --accent-rose-light: #D8572F;
+  --accent-violet: #8A6B4C;
+  --accent-violet-light: #A5876A;
+  --accent-emerald: #1E7E49;
+  --accent-lime-green: #1E7E49;
+  --accent-green-light: #2E9E60;
+  --accent-orange: #C97712;
+  --border-slate: #D6CEBD;
+
+  --c-overlay: 21, 34, 25;
+  --c-blue: 30, 92, 154;
+  --c-blue-dim: 86, 124, 98;
+  --c-violet: 138, 107, 76;
+  --c-lime-green: 30, 126, 73;
+  --c-bg: 237, 231, 220;
+  --c-surf-1: 250, 247, 242;
+  --c-surf-2: 250, 247, 242;
+  --c-surf-3: 255, 255, 255;
+  --c-surf-4: 228, 220, 207;
+  --c-surf-5: 250, 247, 242;
+  --c-surf-6: 255, 255, 255;
+  --c-surf-7: 246, 242, 235;
+
+  --text-primary: #152219;
+  --text-secondary: #4E5D52;
+  --text-tertiary: #4E5D52;
+  --text-muted: #7E8A80;
+  --text-dim: #7E8A80;
+  --text-emerald: #567C62;
+
+  --input-bg: #FFFFFF;
+
+  color-scheme: light;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(33, 75, 55, 0.2);
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(33, 75, 55, 0.35);
+}
+
+/* Reset & Base Setup */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-body);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+body, .glass-panel, .glass-panel-elevated, .form-input, .form-select, input, select, textarea {
+  transition: background-color var(--transition-normal), border-color var(--transition-normal), color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg-primary);
+  overflow-x: hidden;
+}
+
+/* Flat, unobtrusive scrollbars -- no glow */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Numeric alignment & typography standards */
+.tabular-nums, .num, [data-num] {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Flat panels -- no blur/translucency, hairline border, minimal shadow */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--glass-shadow);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.glass-panel:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.glass-panel-elevated {
+  background: var(--glass-bg-elevated);
+  border: 1px solid var(--glass-border-hover);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.18);
+}
+
+/* Interactive Buttons -- solid brand fill, no gradient glow */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--brand-primary);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-light);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--glass-border-hover);
+  color: var(--brand-primary);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-danger-subtle);
+  color: var(--color-danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 7px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-danger:hover {
+  border-color: var(--color-danger);
+}
+
+/* Pill Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+.badge-lime {
+  background: rgba(56, 125, 93, 0.14);
+  color: var(--brand-light);
+  border: 1px solid rgba(56, 125, 93, 0.3);
+}
+
+.badge-mint {
+  background: rgba(117, 163, 131, 0.14);
+  color: var(--brand-sage);
+  border: 1px solid rgba(117, 163, 131, 0.3);
+}
+
+.badge-amber {
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-cyan {
+  background: var(--color-info-subtle);
+  color: var(--color-info);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.badge-muted {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+/* Form Fields */
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.form-label-optional {
+  font-size: 0.7rem;
+  font-weight: 400;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: var(--radius-md);
+  padding: 9px 12px;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.form-input:hover, .form-select:hover {
+  border-color: var(--glass-border-hover);
+}
+
+.form-input:focus, .form-select:focus {
+  border-color: var(--input-border-focus);
+  box-shadow: var(--input-focus-glow);
+}
+
+.form-input::placeholder {
+  color: var(--text-dim);
+}
+
+.input-suffix {
+  position: absolute;
+  right: 12px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.input-with-suffix {
+  padding-right: 58px;
+}
+
+/* App Container Layout (legacy single-column shell -- superseded by the
+   sidebar+topbar shell below for views that use AppShell, kept here only
+   for anything not yet migrated) */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 28px 24px 80px 24px;
+}
+
+/* ==========================================================================
+   APP SHELL -- sidebar + top bar, replacing the old floating-hamburger
+   slide-out Navbar. Structure mirrors the source design's AppLayout.tsx
+   (translated from Tailwind utility classes into these named classes).
+   ========================================================================== */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+}
+
+.shell-body {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.sidebar {
+  flex-shrink: 0;
+  width: 248px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: width var(--transition-normal);
+  z-index: 30;
+}
+
+.sidebar.collapsed {
+  width: 72px;
+}
+
+.sidebar-brand {
+  height: 64px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 0;
+}
+
+.sidebar-brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--brand-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sidebar-brand-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-brand-subtitle {
+  font-size: 0.625rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-collapse-btn {
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sidebar-nav-group-label {
+  padding: 0 12px 8px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.sidebar-nav-item.active {
+  background: var(--brand-primary);
+  color: #fff;
+  font-weight: 600;
+}
+
+.sidebar-nav-item-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.sidebar-nav-item-content span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-nav-badge {
+  padding: 1px 6px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  background: var(--color-warning-subtle);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
+}
+
+.sidebar.collapsed .sidebar-nav-item {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px;
+}
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.theme-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.theme-switch button.active {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.shell-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.topbar {
+  height: 64px;
+  padding: 0 24px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  min-width: 0;
+}
+
+.breadcrumb-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.breadcrumb-link:hover {
+  color: var(--text-primary);
+}
+
+.breadcrumb-current {
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.shell-canvas {
+  flex: 1;
+  overflow-y: auto;
+  padding: 28px 32px 80px;
+}
+
+.shell-canvas-inner {
+  max-width: 1320px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Mobile fixes -- carried over from the old theme (same underlying layouts) */
+@media (max-width: 640px) {
+  .phase4-main-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .wizard-progress-steps {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+  }
+
+  .sidebar {
+    width: 72px;
+  }
+
+  .sidebar-nav-item-content span,
+  .sidebar-brand-text {
+    display: none;
+  }
+}
+
+/* Print support (Phase 7 -- Reports & Audits).
+   .shell-body/.shell-canvas are a scrollable-pane layout (overflow:hidden
+   on the parent, overflow-y:auto on the canvas) so the browser can print
+   only whatever fit on screen at the moment Print was clicked -- reset
+   both to visible so the full report flows across as many printed pages
+   as it needs. Also force light, high-contrast values for every token a
+   card/table actually reads (glass-panel's --glass-bg, nested-panel
+   --c-surf-*, text tiers, borders) with !important so the print always
+   looks the same regardless of which theme was active on screen -- a
+   report that happened to be dark-mode when printed would otherwise waste
+   a page of toner on a near-black background. Chrome's "print backgrounds"
+   setting independently has to be on for most of this to show, which is
+   the browser's own default behavior and outside this app's control. */
+@media print {
+  .sidebar, .topbar, .no-print, .toast-container {
+    display: none !important;
+  }
+
+  .shell, .shell-body, .shell-main {
+    display: block !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+  }
+
+  .shell-canvas {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  .shell-canvas-inner {
+    max-width: 100% !important;
+    gap: 16px !important;
+  }
+
+  :root {
+    --bg-primary: #ffffff !important;
+    --bg-secondary: #ffffff !important;
+    --bg-tertiary: #ffffff !important;
+    --border-color: #d0d0d0 !important;
+    --glass-bg: #ffffff !important;
+    --glass-bg-hover: #ffffff !important;
+    --glass-bg-elevated: #ffffff !important;
+    --glass-border: #d0d0d0 !important;
+    --glass-shadow: none !important;
+    --c-surf-1: 255, 255, 255 !important;
+    --c-surf-2: 255, 255, 255 !important;
+    --c-surf-5: 245, 245, 245 !important;
+    --c-overlay: 0, 0, 0 !important;
+    --text-primary: #111111 !important;
+    --text-secondary: #333333 !important;
+    --text-tertiary: #444444 !important;
+    --text-muted: #666666 !important;
+  }
+
+  body, .shell {
+    background: #ffffff !important;
+  }
+
+  .glass-panel, .glass-panel-elevated {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+
+  table, tr {
+    break-inside: avoid;
+  }
+}
