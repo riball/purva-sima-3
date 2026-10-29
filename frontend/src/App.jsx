@@ -1,19 +1,32 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense, lazy } from 'react'
 import { ProjectProvider, useProject } from './context/ProjectContext'
 import AppShell from './components/layout/AppShell'
 import PlaceholderView from './components/common/PlaceholderView'
 import LandingPage from './components/landing/LandingPage'
-import ProjectDashboard from './components/project/ProjectDashboard'
-import ProjectDirectory from './components/project/ProjectDirectory'
-import PortfolioOverview from './components/portfolio/PortfolioOverview'
-import ConceptualEstimatePage from './components/phase1/ConceptualEstimatePage'
-import Phase2View from './components/phase2/Phase2View'
-import JobDashboardPage from './components/phase2/JobDashboardPage'
-import CarbonTrackingPage from './components/tracking/CarbonTrackingPage'
-import MaterialMappingQueue from './components/mapping/MaterialMappingQueue'
-import FactorsView from './components/factors/FactorsView'
-import ReportsView from './components/reports/ReportsView'
-import OperationalEmissionsView from './components/opex/OperationalEmissionsView'
+
+// Performance fix: these 11 views used to be static imports, so Vite
+// bundled every single one (plus everything they pull in -- recharts,
+// framer-motion usage, etc.) into one ~1.08MB JS chunk that shipped on
+// EVERY page load no matter which single view the user actually opened
+// first. React.lazy() + dynamic import() tells Vite to give each of
+// these its own chunk, fetched only the first time its view is opened --
+// so "open the app, look at Portfolio Overview" now only has to download
+// the Portfolio chunk (plus the small shared vendor chunk), not Reports,
+// Factors, OperationalEmissions, etc. too. LandingPage stays a static
+// import on purpose: it's the very first thing rendered, so lazy-loading
+// it would just add a network round trip before the first paint instead
+// of saving one.
+const ProjectDashboard = lazy(() => import('./components/project/ProjectDashboard'))
+const ProjectDirectory = lazy(() => import('./components/project/ProjectDirectory'))
+const PortfolioOverview = lazy(() => import('./components/portfolio/PortfolioOverview'))
+const ConceptualEstimatePage = lazy(() => import('./components/phase1/ConceptualEstimatePage'))
+const Phase2View = lazy(() => import('./components/phase2/Phase2View'))
+const JobDashboardPage = lazy(() => import('./components/phase2/JobDashboardPage'))
+const CarbonTrackingPage = lazy(() => import('./components/tracking/CarbonTrackingPage'))
+const MaterialMappingQueue = lazy(() => import('./components/mapping/MaterialMappingQueue'))
+const FactorsView = lazy(() => import('./components/factors/FactorsView'))
+const ReportsView = lazy(() => import('./components/reports/ReportsView'))
+const OperationalEmissionsView = lazy(() => import('./components/opex/OperationalEmissionsView'))
 
 // Single-view-state navigation, same mechanism as the old app (no router)
 // -- just renamed from `activeTab` to `currentView` and re-pointed at the
@@ -94,7 +107,9 @@ function AppContent() {
   return (
     <AppShell currentView={currentView} setCurrentView={setCurrentView}>
       {ViewComponent ? (
-        <ViewComponent />
+        <Suspense fallback={<div style={{ padding: 48, textAlign: 'center', color: 'var(--text-secondary)' }}>Loading…</div>}>
+          <ViewComponent />
+        </Suspense>
       ) : (
         <PlaceholderView title={view.title} phase={view.phase} description={view.description} />
       )}

@@ -64,7 +64,20 @@ const SERIES_COLORS = { baseline: 'var(--chart-ord-light)', billed: 'var(--chart
 export default function PortfolioOverview() {
   const { projects, activeCompanyId, selectProject, navigate, isLoading: projectsLoading, loadProjects } = useProject()
 
-  const [dashboards, setDashboards] = useState({}) // project_id -> dashboard | 'error' | undefined
+  // Performance fix: this used to also hold a per-project `dashboards`
+  // state, filled by firing ONE api.getDashboard() call per baselined
+  // project below -- 18 extra HTTP round trips for an 18-project
+  // portfolio, every time this page mounted, to recompute figures the
+  // backend's GET /phase3/projects list already has in hand (it loads
+  // every project's baseline+bills itself to build n_bills/
+  // latest_bill_period). That list now also returns baseline_tonnes/
+  // billed_to_date_tonnes/projected_tonnes/floor_area_sqm/
+  // percent_complete/projected_vs_baseline_pct directly (see
+  // phase3.ProjectSummary's own comment), computed via the exact same
+  // compute_dashboard() the old GET .../dashboard call used -- so `rows`
+  // below reads those straight off `projects`/`p` now, and only the
+  // bills fetch (needed for the per-project material-category
+  // breakdown, which the list endpoint doesn't carry) remains.
   const [billsByProject, setBillsByProject] = useState({}) // project_id -> bills[] | 'error' | undefined
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [sortKey, setSortKey] = useState('variance')
@@ -89,19 +102,10 @@ export default function PortfolioOverview() {
     let cancelled = false
     const baselined = projects.filter((p) => p.has_baseline)
     if (baselined.length === 0) {
-      setDashboards({})
       setBillsByProject({})
       return
     }
     setIsLoadingDetail(true)
-    Promise.allSettled(baselined.map((p) => api.getDashboard(p.project_id, activeCompanyId))).then((results) => {
-      if (cancelled) return
-      const next = {}
-      results.forEach((res, i) => {
-        next[baselined[i].project_id] = res.status === 'fulfilled' ? res.value : 'error'
-      })
-      setDashboards(next)
-    })
     Promise.allSettled(baselined.map((p) => api.getBills(p.project_id, activeCompanyId))).then((results) => {
       if (cancelled) return
       const next = {}
@@ -116,31 +120,33 @@ export default function PortfolioOverview() {
     }
   }, [projects, activeCompanyId])
 
-  // One row per project -- real dashboard/bill figures where available,
-  // nulls otherwise (rendered as "--", never a fabricated zero).
+  // One row per project -- real baseline/bill figures where available,
+  // nulls otherwise (rendered as "--", never a fabricated zero). The
+  // carbon figures (baselineT/billedT/projectedT/etc.) now come straight
+  // off the project summary `p` itself -- see the useEffect above's
+  // comment on why that no longer needs a separate per-project fetch.
   const rows = useMemo(() => {
     return projects.map((p) => {
-      const dash = dashboards[p.project_id]
-      const hasDash = dash && dash !== 'error' && dash.baseline
+      const hasDash = !!p.has_baseline && p.baseline_tonnes != null
       const bills = billsByProject[p.project_id]
       const categoryTotals = Array.isArray(bills) ? aggregateCategories(bills).rows : []
       const largestCategory = categoryTotals.length > 0 ? categoryTotals[0] : null
 
       return {
         project: p,
-        dashboard: hasDash ? dash : null,
+        hasDash,
         categoryTotals,
         largestCategory,
-        baselineT: hasDash ? dash.baseline.total_gwp_kg_co2e / 1000 : null,
-        billedT: hasDash && dash.billed_to_date_gwp_kg_co2e != null ? dash.billed_to_date_gwp_kg_co2e / 1000 : null,
-        projectedT: hasDash && dash.projected_total_gwp_kg_co2e ? dash.projected_total_gwp_kg_co2e / 1000 : hasDash ? dash.baseline.total_gwp_kg_co2e / 1000 : null,
-        floorAreaSqm: hasDash ? dash.baseline.floor_area_sqm : null,
-        completionPct: hasDash ? dash.percent_complete : null,
-        variancePct: hasDash ? dash.projected_vs_baseline_pct : null,
+        baselineT: hasDash ? p.baseline_tonnes : null,
+        billedT: hasDash ? p.billed_to_date_tonnes : null,
+        projectedT: hasDash ? (p.projected_tonnes ?? p.baseline_tonnes) : null,
+        floorAreaSqm: hasDash ? p.floor_area_sqm : null,
+        completionPct: hasDash ? p.percent_complete : null,
+        variancePct: hasDash ? p.projected_vs_baseline_pct : null,
         bills: p.n_bills || 0,
       }
     })
-  }, [projects, dashboards, billsByProject])
+  }, [projects, billsByProject])
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -191,7 +197,7 @@ export default function PortfolioOverview() {
 
   // Portfolio-wide aggregates -- plain sums over whichever rows have real
   // data loaded. A project with no baseline simply isn't part of any total.
-  const tracked = rows.filter((r) => r.dashboard)
+  const tracked = rows.filter((r) => r.hasDash)
   const totalBilledT = tracked.reduce((sum, r) => sum + (r.billedT || 0), 0)
   const totalBaselineT = tracked.reduce((sum, r) => sum + (r.baselineT || 0), 0)
   const totalProjectedT = tracked.reduce((sum, r) => sum + (r.projectedT || 0), 0)
@@ -621,7 +627,7 @@ export default function PortfolioOverview() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {sortedRows.map((r) => {
               const p = r.project
-              const hasDash = !!r.dashboard
+              const hasDash = r.hasDash
               const exceeding = r.variancePct !== null && r.variancePct > 0
               return (
                 <div
@@ -647,7 +653,7 @@ export default function PortfolioOverview() {
                         {p.project_name || p.project_id}
                       </div>
                       <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {p.location || (hasDash ? `${r.dashboard.baseline.is_estimated ? 'Estimated' : r.dashboard.baseline.source_type.toUpperCase()} baseline` : p.has_baseline ? 'Baseline recorded' : 'No baseline yet')}
+                        {p.location || (hasDash ? `${p.baseline_is_estimated ? 'Estimated' : (p.baseline_source_type || '').toUpperCase()} baseline` : p.has_baseline ? 'Baseline recorded' : 'No baseline yet')}
                       </div>
                     </div>
                   </button>

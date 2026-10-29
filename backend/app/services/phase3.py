@@ -279,6 +279,23 @@ class ProjectSummary(BaseModel):
     is_beta_twin: bool = False
     beta_source_project_id: Optional[str] = None
 
+    # Performance fix: PortfolioOverview.jsx used to get these four
+    # numbers by firing a SEPARATE GET .../dashboard call per project
+    # after this list loaded -- 18 extra round trips for an 18-project
+    # portfolio, every single time the page opens, to recompute figures
+    # this exact loop already has baseline/bills in hand for. Added here
+    # instead so the whole portfolio page is one request. Computed via
+    # the real compute_dashboard() (never a second, approximate formula)
+    # so these can never drift from what GET .../dashboard itself
+    # reports -- None for a project with no baseline, exactly like that
+    # endpoint's own fields.
+    baseline_tonnes: Optional[float] = None
+    billed_to_date_tonnes: Optional[float] = None
+    projected_tonnes: Optional[float] = None
+    floor_area_sqm: Optional[float] = None
+    percent_complete: Optional[float] = None
+    projected_vs_baseline_pct: Optional[float] = None
+
 
 def list_projects(company_id: str) -> list[ProjectSummary]:
     """Every project_id this company has EITHER a Phase 1 record for
@@ -324,6 +341,32 @@ def list_projects(company_id: str) -> list[ProjectSummary]:
         location = registry_entry.get("location") or (
             phase1_project.mandatory.location.value if phase1_project else None
         )
+
+        # See ProjectSummary's own comment on these fields: reuse
+        # compute_dashboard() rather than re-deriving the same figures a
+        # second way, so this list can never silently disagree with what
+        # GET .../dashboard reports for the same project. baseline and
+        # bills are already loaded above (lines 333-334) -- pass them
+        # straight through via compute_dashboard's _baseline/_bills
+        # params instead of letting it re-read both files from disk a
+        # second time per project, which is what it did before those
+        # params existed (18 projects x 2 redundant file reads on every
+        # GET /phase3/projects call).
+        baseline_tonnes = billed_to_date_tonnes = projected_tonnes = None
+        floor_area_sqm = percent_complete = projected_vs_baseline_pct = None
+        if baseline is not None:
+            try:
+                dash = compute_dashboard(company_id, project_id, _baseline=baseline, _bills=bills)
+            except ValueError:
+                dash = None  # same "no baseline" guard compute_dashboard itself raises on -- shouldn't happen here since baseline is not None, kept defensive rather than assumed
+            if dash is not None:
+                baseline_tonnes = dash.baseline.total_gwp_kg_co2e / 1000
+                billed_to_date_tonnes = dash.billed_to_date_gwp_kg_co2e / 1000 if dash.billed_to_date_gwp_kg_co2e is not None else None
+                projected_tonnes = dash.projected_total_gwp_kg_co2e / 1000 if dash.projected_total_gwp_kg_co2e is not None else baseline_tonnes
+                floor_area_sqm = dash.baseline.floor_area_sqm
+                percent_complete = dash.percent_complete
+                projected_vs_baseline_pct = dash.projected_vs_baseline_pct
+
         summaries.append(
             ProjectSummary(
                 project_id=project_id,
@@ -343,6 +386,12 @@ def list_projects(company_id: str) -> list[ProjectSummary]:
                 n_bills=len(bills),
                 latest_bill_period=bills[-1].period if bills else None,
                 latest_billed_date=bills[-1].billed_date if bills else None,
+                baseline_tonnes=baseline_tonnes,
+                billed_to_date_tonnes=billed_to_date_tonnes,
+                projected_tonnes=projected_tonnes,
+                floor_area_sqm=floor_area_sqm,
+                percent_complete=percent_complete,
+                projected_vs_baseline_pct=projected_vs_baseline_pct,
             )
         )
     return summaries
@@ -803,8 +852,25 @@ def get_typical_building_carbon_per_sqm(
 # --------------------------------------------------------------------------
 
 
-def compute_dashboard(company_id: str, project_id: str) -> DashboardResult:
-    baseline = load_baseline(company_id, project_id)
+def compute_dashboard(
+    company_id: str,
+    project_id: str,
+    _baseline: Optional[Phase3Baseline] = None,
+    _bills: Optional[list] = None,
+) -> DashboardResult:
+    # Performance: list_projects() below already loads baseline+bills for
+    # EVERY project in the portfolio (it needs them for n_bills/
+    # latest_bill_period), then calls this function again per baselined
+    # project to get the dashboard-derived totals -- without these two
+    # params that meant every project's baseline/bills JSON got read
+    # TWICE per GET /phase3/projects call. _baseline/_bills let a caller
+    # that already has them hand them in instead of re-reading from disk;
+    # every other caller (the real GET .../dashboard endpoint, chatbot.py,
+    # the test suite) keeps calling this with just (company_id,
+    # project_id), which still loads fresh exactly as before -- no change
+    # in behavior for any of them, just an opt-in skip of the redundant
+    # read for the one caller that can use it.
+    baseline = _baseline if _baseline is not None else load_baseline(company_id, project_id)
     if baseline is None:
         raise ValueError(
             f"No Phase 3 baseline recorded for project '{project_id}' (company '{company_id}') -- "
@@ -812,7 +878,7 @@ def compute_dashboard(company_id: str, project_id: str) -> DashboardResult:
             f"or requesting a dashboard."
         )
 
-    bills = list_bill_periods(company_id, project_id)
+    bills = _bills if _bills is not None else list_bill_periods(company_id, project_id)
     notes: list[str] = []
 
     if baseline.is_estimated:

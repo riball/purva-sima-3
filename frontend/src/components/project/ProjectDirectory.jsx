@@ -30,7 +30,17 @@ import { originLabel } from '../../utils/projectOrigin'
 export default function ProjectDirectory() {
   const { projects, activeCompanyId, selectProject, navigate, deleteProject, isLoading: projectsLoading } = useProject()
 
-  const [dashboards, setDashboards] = useState({}) // project_id -> dashboard | 'error'
+  // Performance fix: this used to fire its own Promise.allSettled fan-out
+  // of one getDashboard() call per baselined project (on top of the
+  // getBills() fan-out below) -- the exact same N+1 pattern just fixed in
+  // PortfolioOverview.jsx, and just as costly here (18 extra round trips
+  // for an 18-project portfolio, every time this grid loads or the
+  // company switches). GET /phase3/projects (what `projects` below comes
+  // from) now returns the same dashboard-derived totals directly on each
+  // ProjectSummary, so there's nothing left for a separate dashboard
+  // fetch to do -- only the per-project bills fan-out below remains,
+  // still needed for the "Most Contributing Material" figure, which has
+  // no bulk endpoint yet.
   const [billsByProject, setBillsByProject] = useState({}) // project_id -> bills[] | 'error'
   const [searchQuery, setSearchQuery] = useState('')
   // Permanent delete, backed by DELETE /projects/{id} (already wired on
@@ -59,18 +69,9 @@ export default function ProjectDirectory() {
     let cancelled = false
     const baselined = projects.filter((p) => p.has_baseline)
     if (baselined.length === 0) {
-      setDashboards({})
       setBillsByProject({})
       return
     }
-    Promise.allSettled(baselined.map((p) => api.getDashboard(p.project_id, activeCompanyId))).then((results) => {
-      if (cancelled) return
-      const next = {}
-      results.forEach((res, i) => {
-        next[baselined[i].project_id] = res.status === 'fulfilled' ? res.value : 'error'
-      })
-      setDashboards(next)
-    })
     Promise.allSettled(baselined.map((p) => api.getBills(p.project_id, activeCompanyId))).then((results) => {
       if (cancelled) return
       const next = {}
@@ -86,18 +87,17 @@ export default function ProjectDirectory() {
 
   const rows = useMemo(() => {
     return projects.map((p) => {
-      const dash = dashboards[p.project_id]
-      const hasDash = dash && dash !== 'error' && dash.baseline
+      const hasDash = !!p.has_baseline && p.baseline_tonnes != null
       const bills = billsByProject[p.project_id]
       const categoryTotals = Array.isArray(bills) ? aggregateCategories(bills).rows : []
       const mostContributing = categoryTotals.length > 0 ? categoryTotals[0] : null
 
-      const baselineT = hasDash ? dash.baseline.total_gwp_kg_co2e / 1000 : null
-      const billedT = hasDash && dash.billed_to_date_gwp_kg_co2e != null ? dash.billed_to_date_gwp_kg_co2e / 1000 : null
-      const projectedT = hasDash && dash.projected_total_gwp_kg_co2e ? dash.projected_total_gwp_kg_co2e / 1000 : baselineT
-      const floorAreaSqm = hasDash ? dash.baseline.floor_area_sqm : null
-      const deviationPct = hasDash ? dash.projected_vs_baseline_pct : null
-      const completionPct = hasDash ? dash.percent_complete : null
+      const baselineT = hasDash ? p.baseline_tonnes : null
+      const billedT = hasDash ? p.billed_to_date_tonnes : null
+      const projectedT = hasDash ? (p.projected_tonnes ?? p.baseline_tonnes) : null
+      const floorAreaSqm = hasDash ? p.floor_area_sqm : null
+      const deviationPct = hasDash ? p.projected_vs_baseline_pct : null
+      const completionPct = hasDash ? p.percent_complete : null
       const budgetUsedPct = baselineT && billedT != null ? Math.min(100, (billedT / baselineT) * 100) : null
       const intensityKgPerM2 = floorAreaSqm && projectedT != null ? (projectedT * 1000) / floorAreaSqm : null
       const currentIntensityKgPerM2 = floorAreaSqm && billedT != null ? (billedT * 1000) / floorAreaSqm : null
@@ -117,7 +117,7 @@ export default function ProjectDirectory() {
         currentIntensityKgPerM2,
       }
     })
-  }, [projects, dashboards, billsByProject])
+  }, [projects, billsByProject])
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
