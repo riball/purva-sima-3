@@ -5,7 +5,6 @@ import {
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 import { Phase1FormProvider, usePhase1Form, MAX_GFA_SQM, SQM_TO_SQFT } from './Phase1FormContext'
 import { useProject } from '../../context/ProjectContext'
-import ConfidenceBadge from '../common/ConfidenceBadge'
 import SaveProjectNameModal from '../shared/SaveProjectNameModal'
 import { CATEGORY_COLORS, CATEGORY_LABELS, FALLBACK_COLOR } from '../common/charts/MaterialBreakdownChart'
 
@@ -39,7 +38,16 @@ import { CATEGORY_COLORS, CATEGORY_LABELS, FALLBACK_COLOR } from '../common/char
 
 const REFERENCE_PROVENANCE_RE = /^boq-sourced \((.+)\)$/
 
+// The backend now sends an explicit material_category on every breakdown
+// row (see calculation_engine.py's MaterialBreakdown) -- added precisely
+// because a quantity_unit-only guess breaks the moment two categories
+// share a unit (glass and aluminium are both area-based, same as each
+// other but different from concrete's m3/steel's kg). The unit-based
+// fallback below only matters for a baseline locked before that field
+// existed (a stale CalculationResult cached somewhere); every live
+// /calculate response already carries material_category directly.
 function categoryForBreakdownItem(item) {
+  if (item.material_category) return item.material_category
   if (item.quantity_unit === 'm3') return 'concrete'
   if (item.quantity_unit === 'kg') return 'reinforcement_steel'
   return null
@@ -59,17 +67,56 @@ function SectionHeader({ number, title, caption }) {
   )
 }
 
-// Shows a small provenance badge next to a field once it's been auto-filled
-// (boq-matched/llm-estimated/own-boq-extracted/fallback-default) -- folds
-// ReviewStep.jsx's old separate correction table into an inline affordance
-// instead: the field itself is always directly editable right here, and
-// editing it (via handleChange + scheduleSync) is exactly what ReviewStep's
-// PATCH-based "Save Corrections" already did, just automatic instead of a
-// manual step. Nothing shows for 'unset' (not auto-filled yet) or
-// 'user-entered' (no need to badge the user's own typing).
-function FieldProvenance({ fieldObj }) {
-  if (!fieldObj || fieldObj.source === 'unset' || fieldObj.source === 'user-entered') return null
-  return <ConfidenceBadge source={fieldObj.source} confidence={fieldObj.confidence} />
+// UX refinement: "there is estimated gap (40%) being shown for every
+// title, same for materials, make it avg out and mention it below the
+// section name itself". Before this, every single auto-filled field in
+// Typology/Materials carried its OWN ConfidenceBadge -- harmless with one
+// or two auto-filled fields, but once nothing in a section was user-set
+// (the common case for a fresh estimate), that was 7-8 near-identical
+// "Estimated Gap 40%" pills in a row. This collapses a whole section's
+// worth of per-field badges into ONE summary line under the section
+// title: average confidence across every auto-filled field, grouped by
+// source so a section that's genuinely a mix (e.g. some fields BOQ-
+// matched, others LLM-estimated) still says so honestly rather than
+// averaging across semantically different sources into one misleading
+// number.
+const PROVENANCE_LABELS = {
+  'own-boq-extracted': { label: 'Own BOQ', badgeClass: 'badge-mint' },
+  'boq-matched': { label: 'Reference Scaled', badgeClass: 'badge-cyan' },
+  'llm-estimated': { label: 'Estimated Gap', badgeClass: 'badge-amber' },
+  'fallback-default': { label: 'Standard Default', badgeClass: 'badge-muted' },
+}
+
+function SectionProvenanceSummary({ fieldObjs }) {
+  const autoFilled = (fieldObjs || []).filter((f) => f && f.source !== 'unset' && f.source !== 'user-entered')
+  if (autoFilled.length === 0) return null
+
+  const bySource = new Map()
+  autoFilled.forEach((f) => {
+    if (!bySource.has(f.source)) bySource.set(f.source, [])
+    bySource.get(f.source).push(f.confidence ?? 0)
+  })
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: -6, marginBottom: 14 }}>
+      {Array.from(bySource.entries()).map(([source, confidences]) => {
+        const config = PROVENANCE_LABELS[source] || { label: source, badgeClass: 'badge-muted' }
+        const avgPct = Math.round((confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100)
+        return (
+          <span
+            key={source}
+            className={`badge ${config.badgeClass}`}
+            title={`${confidences.length} of ${autoFilled.length} auto-filled fields in this section, averaging ${avgPct}% confidence`}
+            style={{ cursor: 'help' }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'currentColor' }} />
+            {config.label} <span style={{ opacity: 0.7 }}>({confidences.length})</span>
+            <span style={{ opacity: 0.6, fontSize: '0.65rem' }}>avg {avgPct}%</span>
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
 function BasicsSection() {
@@ -173,9 +220,12 @@ function TypologySection({ disabled }) {
   return (
     <div className="glass-panel" style={{ padding: 20, opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
       <SectionHeader number={2} title="Typology" caption="Improves match accuracy -- estimated if left blank" />
+      <SectionProvenanceSummary
+        fieldObjs={[tier2?.typology, tier2?.foundation_type, tier2?.basement_count, tier2?.finish_spec_level, tier2?.parking_type, tier2?.parking_area_sqm]}
+      />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div className="form-group">
-          <label className="form-label">Typology <FieldProvenance fieldObj={tier2?.typology} /></label>
+          <label className="form-label">Typology</label>
           <select value={formData.typology} onChange={(e) => edit('typology', e.target.value)} className="form-select">
             <option value="residential">Residential</option>
             <option value="commercial">Commercial</option>
@@ -185,7 +235,7 @@ function TypologySection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Foundation Type <FieldProvenance fieldObj={tier2?.foundation_type} /></label>
+          <label className="form-label">Foundation Type</label>
           <select value={formData.foundation_type} onChange={(e) => edit('foundation_type', e.target.value)} className="form-select">
             <option value="raft">Raft Foundation</option>
             <option value="isolated_footing">Isolated Footing</option>
@@ -195,7 +245,7 @@ function TypologySection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Basement Floors <FieldProvenance fieldObj={tier2?.basement_count} /></label>
+          <label className="form-label">Basement Floors</label>
           <input
             type="number"
             min="0"
@@ -212,7 +262,7 @@ function TypologySection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Finish Spec Level <FieldProvenance fieldObj={tier2?.finish_spec_level} /></label>
+          <label className="form-label">Finish Spec Level</label>
           <select value={formData.finish_spec_level} onChange={(e) => edit('finish_spec_level', e.target.value)} className="form-select">
             <option value="economical">Economical</option>
             <option value="standard">Standard</option>
@@ -221,7 +271,7 @@ function TypologySection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Parking Type <FieldProvenance fieldObj={tier2?.parking_type} /></label>
+          <label className="form-label">Parking Type</label>
           <select value={formData.parking_type} onChange={(e) => edit('parking_type', e.target.value)} className="form-select">
             <option value="surface">Surface</option>
             <option value="basement">Basement</option>
@@ -230,7 +280,7 @@ function TypologySection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Parking Area <span className="form-label-optional">(m&sup2;)</span> <FieldProvenance fieldObj={tier2?.parking_area_sqm} /></label>
+          <label className="form-label">Parking Area <span className="form-label-optional">(m&sup2;)</span></label>
           <input
             type="number"
             min="0"
@@ -256,9 +306,12 @@ function MaterialsSection({ disabled }) {
   return (
     <div className="glass-panel" style={{ padding: 20, opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto', transition: 'opacity 0.2s' }}>
       <SectionHeader number={3} title="Materials" caption="IFC India anchor keys -- estimated if left blank" />
+      <SectionProvenanceSummary
+        fieldObjs={[tier3?.cement_type, tier3?.concrete_grade_mix, tier3?.steel_reinforcement_ratio_kg_per_sqm, tier3?.mep_complexity, tier3?.facade_type, tier3?.glazing_pct, tier3?.site_condition]}
+      />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
         <div className="form-group">
-          <label className="form-label">Cement Blend Type <FieldProvenance fieldObj={tier3?.cement_type} /></label>
+          <label className="form-label">Cement Blend Type</label>
           <select value={formData.cement_type} onChange={(e) => edit('cement_type', e.target.value)} className="form-select">
             <option value="PPC">PPC (30% Fly Ash Blend - Standard India)</option>
             <option value="PSC">PSC (25% Slag/GGBS Blend - Low Carbon)</option>
@@ -267,7 +320,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Concrete Grade <FieldProvenance fieldObj={tier3?.concrete_grade_mix} /></label>
+          <label className="form-label">Concrete Grade</label>
           <select value={formData.concrete_grade_mix} onChange={(e) => edit('concrete_grade_mix', e.target.value)} className="form-select">
             <option value="M20">M20</option>
             <option value="M25">M25</option>
@@ -279,7 +332,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Steel Ratio <span className="form-label-optional">(auto-matched from BOQ)</span> <FieldProvenance fieldObj={tier3?.steel_reinforcement_ratio_kg_per_sqm} /></label>
+          <label className="form-label">Steel Ratio <span className="form-label-optional">(auto-matched from BOQ)</span></label>
           <div className="input-wrapper">
             <input
               type="number"
@@ -294,7 +347,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">MEP Complexity <FieldProvenance fieldObj={tier3?.mep_complexity} /></label>
+          <label className="form-label">MEP Complexity</label>
           <select value={formData.mep_complexity} onChange={(e) => edit('mep_complexity', e.target.value)} className="form-select">
             <option value="basic">Basic</option>
             <option value="standard">Standard</option>
@@ -303,7 +356,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Facade Type <FieldProvenance fieldObj={tier3?.facade_type} /></label>
+          <label className="form-label">Facade Type</label>
           <input
             type="text"
             placeholder="e.g. AAC block + texture paint"
@@ -314,7 +367,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Glazing <span className="form-label-optional">(%)</span> <FieldProvenance fieldObj={tier3?.glazing_pct} /></label>
+          <label className="form-label">Glazing <span className="form-label-optional">(%)</span></label>
           <input
             type="number"
             min="0"
@@ -327,7 +380,7 @@ function MaterialsSection({ disabled }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Site Condition <FieldProvenance fieldObj={tier3?.site_condition} /></label>
+          <label className="form-label">Site Condition</label>
           <select value={formData.site_condition} onChange={(e) => edit('site_condition', e.target.value)} className="form-select">
             <option value="normal_soil">Normal Soil</option>
             <option value="rocky">Rocky</option>
@@ -336,16 +389,6 @@ function MaterialsSection({ disabled }) {
           </select>
         </div>
 
-        <div className="form-group">
-          <label className="form-label">Green Certification <FieldProvenance fieldObj={tier3?.green_cert_target} /></label>
-          <input
-            type="text"
-            placeholder="e.g. IGBC Gold, none"
-            value={formData.green_cert_target}
-            onChange={(e) => edit('green_cert_target', e.target.value)}
-            className="form-input"
-          />
-        </div>
       </div>
     </div>
   )
@@ -472,7 +515,7 @@ function ResultsPanel() {
               <span className="tabular-nums" style={{ fontSize: '2.25rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>
                 {calculationResult.carbon.total_carbon_tonnes.toLocaleString(undefined, { maximumFractionDigits: 1 })}
               </span>
-              <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent-lime)' }}>Tonnes CO&sub2;e</span>
+              <span style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent-lime)' }}>Tonnes CO₂e</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 10, borderRadius: 'var(--radius-md)', background: 'rgba(var(--c-surf-2), 0.6)', fontSize: '0.75rem' }}>

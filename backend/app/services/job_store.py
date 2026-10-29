@@ -132,6 +132,33 @@ def load_job(company_id: str, job_id: str) -> Optional[JobRecord]:
     return JobRecord.model_validate(json.loads(path.read_text()))
 
 
+def delete_job(company_id: str, job_id: str) -> bool:
+    """"I want to be able to delete some recent uploads" on the Analyze
+    BOQ/Work Order page -- removes a job's status record AND its full
+    computed result file (see upload_jobs._result_path's identical
+    "<job_id>_result.json" naming, which list_jobs above already knows to
+    skip when globbing). Deliberately does NOT touch anything downstream
+    of the job: if the user already ran "Use as Baseline" on this job
+    (job.project_id is set), that project and its baseline are untouched
+    -- the job record is only this page's own upload history, not the
+    project's data.
+
+    Returns True if anything was actually removed, False if there was
+    nothing to delete (route uses this to 404 rather than silently
+    succeeding on an id that was never real, same pattern
+    app/api/projects.py's delete_project already follows)."""
+    job_path = _job_path(company_id, job_id)
+    result_path = job_path.with_name(f"{job_id}_result.json")
+    removed = False
+    if job_path.exists():
+        job_path.unlink()
+        removed = True
+    if result_path.exists():
+        result_path.unlink()
+        removed = True
+    return removed
+
+
 def list_jobs(company_id: str, active_only: bool = False) -> list[JobRecord]:
     """Bugfix: this directory holds two different kinds of file side by
     side -- one JobRecord per job at "<job_id>.json" (what this function

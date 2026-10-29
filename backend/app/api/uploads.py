@@ -191,6 +191,25 @@ def list_jobs(company_id: str = company_store.DEFAULT_COMPANY_ID, active_only: b
     return job_store.list_jobs(company_id, active_only=active_only)
 
 
+class DeleteJobResponse(BaseModel):
+    deleted: bool
+    job_id: str
+    company_id: str
+
+
+@router.delete("/jobs/{job_id}", response_model=DeleteJobResponse)
+def delete_job(job_id: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> DeleteJobResponse:
+    """"I want to be able to delete some recent uploads" on the Analyze
+    BOQ/Work Order page -- see job_store.delete_job's own docstring for
+    exactly what this does and doesn't touch. 404s only when the job_id
+    was never real (same shape as projects.py's delete_project), so a
+    caller can't accidentally believe a no-op succeeded."""
+    removed = job_store.delete_job(company_id, job_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"No job '{job_id}' found for company '{company_id}'.")
+    return DeleteJobResponse(deleted=True, job_id=job_id, company_id=company_id)
+
+
 class UseAsBaselineRequest(BaseModel):
     project_id: str
     company_id: str = company_store.DEFAULT_COMPANY_ID

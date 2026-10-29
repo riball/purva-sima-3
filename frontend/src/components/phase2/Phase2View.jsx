@@ -25,9 +25,21 @@ export default function Phase2View() {
   // Dual dropzone state -- either or both may be filled before submitting
   const [boqFile, setBoqFile] = useState(null)
   const [woFile, setWoFile] = useState(null)
+  const [projectName, setProjectName] = useState('')
   const [floorAreaSqm, setFloorAreaSqm] = useState('25000')
   const [floorAreaBasis, setFloorAreaBasis] = useState('built_up_total')
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Fix: "Use as Baseline" used to silently reuse whatever project happened
+  // to be selected elsewhere in the app ("mapping to a random already
+  // existing project and not creating a new one"). The real fix is to name
+  // the project right here, at upload time, so "Use as Baseline" always has
+  // a name to create a NEW project under. jobNameMap keys a job_id to the
+  // name that was typed when that upload was submitted -- one submission's
+  // BOQ and WO jobs share the same typed name, since they're the same
+  // upload. Persisted in state (not just local var) so it survives the
+  // re-render when refreshJobs() pulls the new job in.
+  const [jobNameMap, setJobNameMap] = useState({})
 
   // Recent jobs (all statuses) for this company -- JobResultsCompare renders
   // these as cards. activeJobs (from ProjectContext, already polling every
@@ -75,8 +87,12 @@ export default function Phase2View() {
       addToast('Select at least one file — a BOQ, a Work Order, or both', 'error')
       return
     }
-    if ((floorAreaSqm && !floorAreaBasis) || (!floorAreaSqm && floorAreaBasis)) {
-      addToast('Floor Area and Floor Area Basis must be specified together', 'error')
+    if (!floorAreaSqm) {
+      addToast('Total Built-Up Area (TBUA) is required — it is used to calculate embodied carbon per m² and as the project baseline\'s floor area', 'error')
+      return
+    }
+    if (!projectName.trim()) {
+      addToast('Project Name is required — it will be used to create the new project when you lock this in as a baseline', 'error')
       return
     }
 
@@ -87,8 +103,21 @@ export default function Phase2View() {
         { floorAreaSqm: floorAreaSqm ? Number(floorAreaSqm) : undefined, floorAreaBasis, companyId: activeCompanyId }
       )
       const kinds = [res.boq_job_id && 'BOQ', res.wo_job_id && 'Work Order'].filter(Boolean).join(' + ')
+      // Record the typed name against both returned job ids -- same upload, same name.
+      const trimmedName = projectName.trim()
+      setJobNameMap((prev) => {
+        const next = { ...prev }
+        if (res.boq_job_id) next[res.boq_job_id] = trimmedName
+        if (res.wo_job_id) next[res.wo_job_id] = trimmedName
+        return next
+      })
       addToast(`${kinds} calculation started — it's running in the background. Explore the rest of the app; you'll get a notification the moment it's done.`, 'success', 7000)
       await refreshJobs()
+      // Reset the name + files so the next upload starts clean -- each
+      // submission names its own project, nothing carries over by accident.
+      setProjectName('')
+      setBoqFile(null)
+      setWoFile(null)
     } catch (err) {
       addToast(`Could not start calculation: ${err.message}`, 'error')
     } finally {
@@ -202,18 +231,43 @@ export default function Phase2View() {
         {/* Area Basis Controls */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 18, marginBottom: 20 }}>
           <div className="form-group">
-            <label className="form-label">Floor Area (Optional)</label>
+            <label className="form-label">Project Name *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Purva Ecopolitan"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="form-input"
+              style={!projectName.trim() ? { borderColor: 'rgba(var(--c-rose), 0.5)' } : undefined}
+            />
+            {!projectName.trim() && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--accent-rose)', marginTop: 4, display: 'block' }}>
+                Required — used to create a new project when you lock this in as a baseline below.
+              </span>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Total Built-Up Area (TBUA) *</label>
             <div className="input-wrapper">
               <input
                 type="number"
                 step="any"
+                required
                 placeholder="e.g. 25000"
                 value={floorAreaSqm}
                 onChange={(e) => setFloorAreaSqm(e.target.value)}
                 className="form-input input-with-suffix"
+                style={!floorAreaSqm ? { borderColor: 'rgba(var(--c-rose), 0.5)' } : undefined}
               />
               <span className="input-suffix">m²</span>
             </div>
+            {!floorAreaSqm && (
+              <span style={{ fontSize: '0.7rem', color: 'var(--accent-rose)', marginTop: 4, display: 'block' }}>
+                Required — used to calculate embodied carbon per m² and recorded on the project baseline.
+              </span>
+            )}
           </div>
 
           <div className="form-group">
@@ -251,7 +305,7 @@ export default function Phase2View() {
         <button
           type="submit"
           className="btn-primary"
-          disabled={isSubmitting || (!boqFile && !woFile)}
+          disabled={isSubmitting || (!boqFile && !woFile) || !floorAreaSqm || !projectName.trim()}
           style={{ width: '100%', padding: '12px 20px', fontSize: '0.9375rem' }}
         >
           {isSubmitting ? 'Queuing...' : 'Start Background Calculation'}
@@ -260,7 +314,7 @@ export default function Phase2View() {
 
       {/* Recent Uploads / Job Results */}
       {allJobs.length > 0 ? (
-        <JobResultsCompare jobs={allJobs} />
+        <JobResultsCompare jobs={allJobs} jobNameMap={jobNameMap} onJobDeleted={refreshJobs} />
       ) : (
         !isLoadingJobs && (
           <div className="glass-panel" style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.875rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>

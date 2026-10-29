@@ -87,17 +87,32 @@ export default function CarbonDataExplorer({
   onPointClick = null,
   emptyMessage = 'No bills logged yet — this timeline appears after the first one.',
   height = '70vh',
+  // Phase E's "Trajectory" default card (the mockup's Section 2 grid) wants
+  // Baseline/Cumulative/Period-Incurred on load instead of this
+  // component's long-standing cumulative+baseline+projected default --
+  // overridable per caller rather than changing what every other screen
+  // using this same explorer (TrackingChatHub, CarbonTrackingPage) opens
+  // with by default.
+  defaultSeriesKeys = ['cumulative', 'baseline', 'projected'],
 }) {
   const heightStyle = typeof height === 'number' ? `${height}px` : height
   const projectedColor = isExceedingBaseline ? 'var(--accent-rose)' : 'var(--accent-lime-green)'
 
+  // Baseline -> Period/Present -> Cumulative is the same progression the
+  // mockup's Trajectory chart shows (its own sampled hues pass the dataviz
+  // skill's `--ordinal` checks, see index.css's --chart-ord-* tokens) --
+  // reused here for those 3 roles. `projected`'s color is a genuine STATUS
+  // signal (on-track vs over-baseline), not series identity, so it keeps
+  // its own red/green logic unchanged. `proposed` is a true "what-if"
+  // overlay that can render alongside all three at once, so it gets its
+  // own nominal categorical slot rather than crowding the ordinal ramp.
   const metricDefs = useMemo(
     () => ({
-      cumulative: { key: 'cumulative', label: 'Cumulative (Billed)', color: 'var(--accent-lime)', available: cumulativePoints.length > 0 },
-      present: { key: 'present', label: 'Monthly / Present Period', color: 'var(--accent-cyan)', available: presentOnlyPoints.length > 0 },
-      baseline: { key: 'baseline', label: 'Baseline', color: 'var(--accent-amber)', available: baselineTonnes != null || (baselineSeries && baselineSeries.length > 0) },
+      cumulative: { key: 'cumulative', label: 'Cumulative (Billed)', color: 'var(--chart-ord-dark)', available: cumulativePoints.length > 0 },
+      present: { key: 'present', label: 'Monthly / Present Period', color: 'var(--chart-ord-mid)', available: presentOnlyPoints.length > 0 },
+      baseline: { key: 'baseline', label: 'Baseline', color: 'var(--chart-ord-light)', available: baselineTonnes != null || (baselineSeries && baselineSeries.length > 0) },
       projected: { key: 'projected', label: 'Projected at Completion', color: projectedColor, available: projectedTonnes != null || (projectedSeries && projectedSeries.length > 0) },
-      proposed: { key: 'proposed', label: 'Proposed (unconfirmed)', color: 'var(--accent-violet)', available: proposedTonnes != null },
+      proposed: { key: 'proposed', label: 'Proposed (unconfirmed)', color: 'var(--chart-cat-4)', available: proposedTonnes != null },
     }),
     [cumulativePoints.length, presentOnlyPoints.length, baselineTonnes, projectedTonnes, proposedTonnes, projectedColor, baselineSeries, projectedSeries]
   )
@@ -107,7 +122,7 @@ export default function CarbonDataExplorer({
   // nothing regresses for someone who never touches the controls --
   // "baseline being default and seen already."
   const [series, setSeries] = useState(() =>
-    ['cumulative', 'baseline', 'projected']
+    defaultSeriesKeys
       .filter((k) => metricDefs[k]?.available)
       .map((k) => ({ key: k, type: DEFAULT_TYPE[k] }))
   )
@@ -395,7 +410,7 @@ export default function CarbonDataExplorer({
               <Brush
                 dataKey="dateLabel"
                 height={22}
-                stroke="var(--accent-lime)"
+                stroke="var(--chart-ord-dark)"
                 fill="rgba(var(--c-blue), 0.06)"
                 travellerWidth={8}
                 tickFormatter={() => ''}

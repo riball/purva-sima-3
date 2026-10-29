@@ -91,11 +91,75 @@
   --accent-orange: #C97712;
   --border-slate: #2C3A33;
 
-  /* RGB triples (no "rgba(" wrapper) -- unchanged mechanism */
+  /* ========================================================================
+     CHART PALETTE -- "match the mockup's color theme" (the mockup is
+     "The Verdant Exchange", a differently-branded dashboard this app was
+     asked to visually match). Deliberately separate from the --accent-*
+     tokens above (which stay reserved for warning/info/danger semantics
+     elsewhere in the UI) -- a chart series should never accidentally
+     repaint when some unrelated badge's meaning changes.
+
+     Two different kinds of series live in this app's charts, and the
+     dataviz skill's validator treats them differently -- see
+     scripts/validate_palette.js and references/color-formula.md:
+
+     1. ORDINAL (--chart-ord-*): "Baseline Target -> Billed/Actual ->
+        Projected" (Portfolio's 3 bars) and "Baseline -> Period Incurred
+        -> Cumulative Actual" (the Trajectory chart) are a PROGRESSION,
+        not arbitrary identity -- swapping their order would change their
+        meaning. The mockup's own sampled hues for exactly these 3 roles
+        (#839287 / #5B8266 / #214B37, pixel-sampled off the mockup
+        screenshots) pass the skill's `--ordinal` checks outright (single
+        hue 8° spread, monotone L, all gaps >= 0.06, light end clears
+        3:1) -- used here VERBATIM, this is a real match to the mockup,
+        not an approximation.
+
+     2. CATEGORICAL (--chart-cat-*): the 5-6 material categories
+        (concrete / reinforcement_steel / structural_steel / aluminium /
+        glass / brickwork) are NOMINAL -- swapping them changes nothing.
+        The mockup renders these as 6 near-identical dark-green-to-tan
+        shades, which is a real design choice there but FAILS this
+        skill's hard normal-vision-floor gate when checked (worst
+        adjacent pair ΔE ~7-11, needs >=15 -- confirmed by running
+        validate_palette.js against the mockup's own sampled hex values
+        before deciding this). Rather than ship a material-hotspot chart
+        two material categories of which a colorblind -- or even a
+        fully color-sighted -- viewer genuinely cannot tell apart, these
+        slots use the dataviz skill's own pre-validated default
+        categorical theme (references/palette.md) instead: same
+        method, same "run the validator, don't eyeball it" discipline
+        this whole skill is built around, just not a literal hex-for-hex
+        copy of the mockup for this one chart. Disclosed plainly, not
+        silently swapped. */
+  --chart-ord-light: #486D57;
+  --chart-ord-mid: #508362;
+  --chart-ord-dark: #60996C;
+  --chart-cat-1: #3987E5;  /* concrete */
+  --chart-cat-2: #D95926;  /* reinforcement_steel */
+  --chart-cat-3: #199E70;  /* structural_steel */
+  --chart-cat-4: #C98500;  /* aluminium */
+  --chart-cat-5: #D55181;  /* glass */
+  --chart-cat-6: #008300;  /* brickwork / masonry / blockwork_aac */
+
+  /* RGB triples (no "rgba(" wrapper) -- unchanged mechanism.
+
+     --c-blue is the single most-used token in this whole file: dozens of
+     components across the app read it for the generic translucent
+     panel/border/icon-chip wash (`rgba(var(--c-blue), 0.08-0.35)`) that
+     appears on nearly every card, badge and divider. The name is a
+     holdover from an earlier (literally blue) theme -- "match the
+     mockup's colour theme, shades of green" means this ambient tint has
+     to be green too, everywhere it's used, not just in the handful of
+     spots with "cyan"/"blue" in their own name. Repointing this one
+     token's VALUE (never its name, so every existing `rgba(var(--c-blue),
+     ...)` call site keeps working unchanged) to the brand green is the
+     single highest-leverage fix for that -- same green as --brand-primary
+     / --accent-lime, so every one of those washes now reads as "a soft
+     green tint" instead of "a soft blue tint". */
   --c-black: 0, 0, 0;
   --c-white: 255, 255, 255;
   --c-overlay: 255, 255, 255;
-  --c-blue: 59, 130, 246;
+  --c-blue: 56, 125, 93;       /* = --brand-primary / --accent-lime (dark theme) */
   --c-blue-dim: 44, 99, 73;
   --c-amber: 245, 158, 11;
   --c-rose: 239, 68, 68;
@@ -198,8 +262,23 @@
   --accent-orange: #C97712;
   --border-slate: #D6CEBD;
 
+  /* Chart palette, light mode -- see the :root block's own comment for
+     why these two kinds of slot are sourced differently. The ordinal
+     3-step ramp is the mockup's own sampled hex values verbatim
+     (validated as a passing ordinal ramp); the categorical slots are the
+     dataviz skill's validated default theme's light steps. */
+  --chart-ord-light: #839287;
+  --chart-ord-mid: #5B8266;
+  --chart-ord-dark: #214B37;
+  --chart-cat-1: #2A78D6;
+  --chart-cat-2: #EB6834;
+  --chart-cat-3: #1BAF7A;
+  --chart-cat-4: #EDA100;
+  --chart-cat-5: #E87BA4;
+  --chart-cat-6: #008300;
+
   --c-overlay: 21, 34, 25;
-  --c-blue: 30, 92, 154;
+  --c-blue: 33, 75, 55;        /* = --brand-primary (light theme) -- see the :root block's own comment */
   --c-blue-dim: 86, 124, 98;
   --c-violet: 138, 107, 76;
   --c-lime-green: 30, 126, 73;
@@ -419,6 +498,16 @@ h1, h2, h3, h4, h5, h6, .font-display {
   background: var(--color-info-subtle);
   color: var(--color-info);
   border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+/* Phase F: Section 5's "Interactive Sandbox" tag -- same family as the
+   other status badges above, built from --accent-violet (already defined
+   in both theme blocks, used elsewhere for the Alternatives icon) rather
+   than a new one-off color. */
+.badge-violet {
+  background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+  color: var(--accent-violet);
+  border: 1px solid color-mix(in srgb, var(--accent-violet) 30%, transparent);
 }
 
 .badge-muted {

@@ -36,14 +36,19 @@ specified, and nothing more:
 
 Deliberate scope cuts, disclosed rather than silently assumed:
 
-  - BOQ-sourced baselines only. A WO-sourced baseline has no persisted
-    source result yet (app/api/phase3.py's record_baseline only calls
-    save_source_result on the 'boq' path) -- WoCarbonResult's line-item
-    shape (WoLineItemResult) isn't what substitution_engine.py's catalog
-    matching was built against, and extending it is real work, not a
-    small addition. propose_recommendation() raises a clear ValueError
-    for a WO-sourced or phase1_estimate-sourced project rather than
-    silently doing nothing.
+  - BOQ- and Work-Order-sourced baselines are both supported (closed the
+    gap this docstring used to disclose: app/api/phase3.py's
+    record_baseline now calls save_source_result on BOTH the 'boq' and
+    'wo' paths, and substitution_engine.py's _lines_affected_by /
+    _recompute_line_at_substitute dispatch on the line item's real type
+    to read WoLineItemResult's material_category/unit where BOQ reads
+    category/uom). Cement-blend-specific catalog entries (base_cement_type)
+    still only ever match BOQ lines -- WO line items genuinely carry no
+    cement-grade granularity, so those correctly report "0 affected line
+    items" for a WO project rather than guessing. phase1_estimate-sourced
+    projects remain unsupported (no structured line items exist at all
+    for an estimate); propose_recommendation() raises a clear ValueError
+    for those rather than silently doing nothing.
   - Carbon only, not cost. A confirmed overlay updates gwp_kg_co2e,
     total_gwp_kg_co2e, and by_category -- it does NOT re-estimate
     total_value/rate/amount for the substituted material, since that's a
@@ -63,7 +68,9 @@ from pydantic import BaseModel
 from app.services import company_store, phase3
 from app.services.boq_carbon import substitution_engine
 from app.services.boq_carbon.engine import BoqCarbonResult, CategoryTotal, SQM_TO_SQFT
-from app.services.supplier_catalog import get_entry as get_substitution
+from app.services.boq_carbon.substitution_engine import AnyCarbonResult, _line_category
+from app.services.supplier_catalog import get_entry as get_substitution, load_catalog
+from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, WoCategoryTotal
 
 RecommendationSource = Literal["substitution_catalog"]
 # "confirmed_as_beta" (added alongside confirm_recommendation_as_beta_twin()
@@ -136,6 +143,46 @@ class BetaForkResult(BaseModel):
     new_project_total_gwp_kg_co2e: float
 
 
+class CatalogPreviewEntry(BaseModel):
+    """"I want to be able to see all the possible suggested material
+    swaps" -- one entry per substitution_catalog.json row, evaluated
+    against this project's CURRENT state (not persisted as a
+    Recommendation) at that entry's own catalog `max_recommended_pct`, so
+    the Alternatives grid can show every swap's real numbers at once
+    instead of the user picking one at a time first. Reuses
+    substitution_engine.apply_substitution() -- the exact same
+    real-recompute path propose_recommendation() below already calls --
+    so this is genuinely the same computation, just not written to disk.
+
+    `applicable=False` (zero affected line items -- e.g. a cement-blend
+    entry against a Work-Order baseline, which carries no cement-grade
+    data at all) is reported honestly rather than as a 0% "swap," per
+    this project's standing "never fabricate a number" rule. Cost is
+    deliberately left unestimated (`cost_delta_pct=None`) for the same
+    reason this module's own docstring already discloses for a confirmed
+    overlay: no real re-pricing path exists here, so inventing a cost
+    delta would be worse than omitting one."""
+
+    substitution_id: str
+    label: str
+    base_category: str
+    evaluated_pct: float
+    applicable: bool
+    affected_line_item_count: int
+    original_gwp_kg_co2e: float
+    new_gwp_kg_co2e: float
+    savings_kg_co2e: float
+    savings_pct_of_affected_lines: float
+    savings_pct_of_total: float
+    status: Literal["verified_suitable", "technical_review_required"]
+    reasoning: str
+    structural_caveat: str
+    evidence_tier: str
+    source: str
+    requires_supplier_match: Optional[str] = None
+    cost_delta_pct: Optional[float] = None
+
+
 class CurrentStateSummary(BaseModel):
     project_id: str
     company_id: str
@@ -154,13 +201,25 @@ class CurrentStateSummary(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _apply_overlay_to_result(entry: dict, user_pct: float, result: BoqCarbonResult) -> BoqCarbonResult:
-    matched_rows = {li.row for li in substitution_engine._lines_affected_by(entry, result)}
+def _line_identity(li) -> object:
+    """A stable per-call identity for matching a line item across the
+    "which lines does this catalog entry affect" pass and the "rewrite
+    those lines" pass below. BOQ's LineItemResult carries a real `row`
+    index; WoLineItemResult has no such field, so id() of the in-memory
+    object is used instead -- safe here specifically because both passes
+    iterate the SAME list of objects within one function call, never a
+    reloaded/re-deserialized copy."""
+    return li.row if hasattr(li, "row") else id(li)
+
+
+def _apply_overlay_to_result(entry: dict, user_pct: float, result: AnyCarbonResult) -> AnyCarbonResult:
+    matched_ids = {_line_identity(li) for li in substitution_engine._lines_affected_by(entry, result)}
     frac = max(user_pct, 0.0) / 100.0
+    is_wo = isinstance(result, WoCarbonResult)
 
     new_line_items = []
     for li in result.line_items:
-        if li.row not in matched_rows or li.gwp_kg_co2e is None:
+        if _line_identity(li) not in matched_ids or li.gwp_kg_co2e is None:
             new_line_items.append(li)
             continue
         substitute_gwp = substitution_engine._recompute_line_at_substitute(entry, li)
@@ -178,18 +237,37 @@ def _apply_overlay_to_result(entry: dict, user_pct: float, result: BoqCarbonResu
 
     by_cat: dict[str, list] = {}
     for li in new_line_items:
-        if li.category is None or li.gwp_kg_co2e is None:
+        cat = _line_category(li)
+        if cat is None or li.gwp_kg_co2e is None:
             continue
-        by_cat.setdefault(li.category, []).append(li)
-    new_by_category = [
-        CategoryTotal(
-            category=cat,
-            gwp_kg_co2e=sum(x.gwp_kg_co2e for x in items),
-            line_item_count=len(items),
-            pct_of_total=(sum(x.gwp_kg_co2e for x in items) / new_total * 100) if new_total else 0.0,
-        )
-        for cat, items in sorted(by_cat.items())
-    ]
+        by_cat.setdefault(cat, []).append(li)
+
+    if is_wo:
+        new_by_category = [
+            WoCategoryTotal(
+                category=cat,
+                gwp_kg_co2e=sum(x.gwp_kg_co2e for x in items),
+                line_item_count=len(items),
+                # Cost is never touched by a substitution (this module's
+                # own "carbon only, not cost" scope note) -- each line's
+                # unchanged `amount` is simply re-summed per category,
+                # legitimate reuse of already-present data, not a new
+                # computation.
+                wo_amount_covered=sum(x.amount for x in items),
+                pct_of_total=(sum(x.gwp_kg_co2e for x in items) / new_total * 100) if new_total else 0.0,
+            )
+            for cat, items in sorted(by_cat.items())
+        ]
+    else:
+        new_by_category = [
+            CategoryTotal(
+                category=cat,
+                gwp_kg_co2e=sum(x.gwp_kg_co2e for x in items),
+                line_item_count=len(items),
+                pct_of_total=(sum(x.gwp_kg_co2e for x in items) / new_total * 100) if new_total else 0.0,
+            )
+            for cat, items in sorted(by_cat.items())
+        ]
 
     return result.model_copy(
         update={
@@ -203,17 +281,17 @@ def _apply_overlay_to_result(entry: dict, user_pct: float, result: BoqCarbonResu
     )
 
 
-def _load_current_state(company_id: str, project_id: str) -> BoqCarbonResult:
+def _load_current_state(company_id: str, project_id: str) -> AnyCarbonResult:
     current = phase3.load_source_result(company_id, project_id)
     if current is None:
         baseline = phase3.load_baseline(company_id, project_id)
         if baseline is None:
             raise ValueError(f"Project '{project_id}' has no Phase 3 baseline recorded yet.")
-        if baseline.source_type != "boq":
+        if baseline.source_type not in ("boq", "wo"):
             raise ValueError(
                 f"Project '{project_id}'s baseline is source_type='{baseline.source_type}' -- Phase 4's "
-                "confirm/recalculate/audit flow only supports BOQ-sourced baselines in this pass (see "
-                "phase4.py's module docstring). Record a BOQ-sourced baseline (overwrite=True) to use it."
+                "confirm/recalculate/audit flow only supports BOQ- or Work-Order-sourced baselines (see "
+                "phase4.py's module docstring). Record a BOQ or Work Order baseline (overwrite=True) to use it."
             )
         raise ValueError(f"No structured source result found for project '{project_id}' -- record its baseline again to populate one.")
     return current
@@ -286,6 +364,39 @@ def list_audit_log(company_id: str, project_id: str) -> list[AuditLogEntry]:
 # ---------------------------------------------------------------------------
 # Propose / confirm / reject
 # ---------------------------------------------------------------------------
+
+
+def evaluate_catalog_preview(company_id: str, project_id: str) -> list[CatalogPreviewEntry]:
+    current = _load_current_state(company_id, project_id)
+    previews: list[CatalogPreviewEntry] = []
+    for entry in load_catalog():
+        result = substitution_engine.apply_substitution(entry, entry["max_recommended_pct"], current)
+        # Only the catalog's own explicit load-bearing-review flag gates
+        # the badge -- NOT the mere presence of structural_caveat text,
+        # since every real entry carries a caveat note (e.g. "extend
+        # curing time") even when it's still a routine, pre-approved swap.
+        status = "technical_review_required" if entry.get("always_requires_review_if_load_bearing", False) else "verified_suitable"
+        previews.append(CatalogPreviewEntry(
+            substitution_id=entry["id"],
+            label=result.label,
+            base_category=entry["base_category"],
+            evaluated_pct=entry["max_recommended_pct"],
+            applicable=result.affected_line_item_count > 0,
+            affected_line_item_count=result.affected_line_item_count,
+            original_gwp_kg_co2e=result.original_gwp_kg_co2e,
+            new_gwp_kg_co2e=result.new_gwp_kg_co2e,
+            savings_kg_co2e=result.savings_kg_co2e,
+            savings_pct_of_affected_lines=result.savings_pct_of_affected_lines,
+            savings_pct_of_total=result.savings_pct_of_total_boq,
+            status=status,
+            reasoning=result.reasoning,
+            structural_caveat=result.structural_caveat,
+            evidence_tier=result.evidence_tier,
+            source=result.source,
+            requires_supplier_match=result.requires_supplier_match,
+            cost_delta_pct=None,
+        ))
+    return previews
 
 
 def propose_recommendation(company_id: str, project_id: str, substitution_id: str, user_pct: float) -> Recommendation:
@@ -444,6 +555,13 @@ def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recomm
     else:
         total_value = new_result.coverage.total_value if new_result.coverage else 0.0
         cost_per_kg = (total_value / new_result.total_gwp_kg_co2e) if new_result.total_gwp_kg_co2e else None
+        # The only two BOQ-specific field names left in this function --
+        # WoCarbonResult names the same two counts n_line_items_computed/
+        # n_line_items_parsed instead of n_lines_computed/n_lines_total.
+        if isinstance(new_result, WoCarbonResult):
+            n_computed, n_total = new_result.n_line_items_computed, new_result.n_line_items_parsed
+        else:
+            n_computed, n_total = new_result.n_lines_computed, new_result.n_lines_total
         synthetic_bill = phase3.BillPeriod(
             project_id=new_project_id,
             company_id=company_id,
@@ -456,8 +574,8 @@ def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recomm
             total_value_to_date=total_value,
             cost_per_kg_co2e_to_date=cost_per_kg,
             coverage=new_result.coverage,
-            n_lines_computed=new_result.n_lines_computed,
-            n_lines_total=new_result.n_lines_total,
+            n_lines_computed=n_computed,
+            n_lines_total=n_total,
             bill_source=None,
             category_breakdown=new_category_breakdown,
         )

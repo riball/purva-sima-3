@@ -39,12 +39,40 @@ real, buildable mix.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from app.services.boq_carbon.engine import BoqCarbonResult, compute_line_gwp, _MASS_KG_UNITS, _MASS_MT_UNITS
+from app.services.boq_carbon.engine import BoqCarbonResult, LineItemResult, compute_line_gwp, _MASS_KG_UNITS, _MASS_MT_UNITS
 from app.services.supplier_catalog import get_entry as get_substitution
+from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, WoLineItemResult
+
+AnyCarbonResult = Union[BoqCarbonResult, WoCarbonResult]
+AnyLineItem = Union[LineItemResult, WoLineItemResult]
+
+
+def _line_category(li: AnyLineItem) -> Optional[str]:
+    """BOQ's `category` and WO's `material_category` are the SAME
+    vocabulary (confirmed: wo_carbon_engine.py classifies into
+    "reinforcement_steel" etc., the identical strings boq_carbon's
+    `category` field uses) -- just different field names on the two
+    Pydantic classes."""
+    return li.material_category if isinstance(li, WoLineItemResult) else li.category
+
+
+def _line_unit(li: AnyLineItem) -> Optional[str]:
+    return li.unit if isinstance(li, WoLineItemResult) else li.uom
+
+
+def _line_cement_type(li: AnyLineItem) -> Optional[str]:
+    # WO line items never carry cement-grade granularity -- always None,
+    # so a cement-blend-filtered catalog entry (base_cement_type) never
+    # matches a WO line. Honest "0 affected lines," not a guess.
+    return None if isinstance(li, WoLineItemResult) else li.cement_type
+
+
+def _line_grade(li: AnyLineItem) -> Optional[str]:
+    return None if isinstance(li, WoLineItemResult) else li.grade
 
 
 class SubstitutionRequest(BaseModel):
@@ -85,29 +113,40 @@ class BoqSubstitutionResponse(BaseModel):
     combined_impact: Optional[CombinedImpact] = None
 
 
-def _lines_affected_by(entry: dict, base_result: BoqCarbonResult) -> list:
+def _lines_affected_by(entry: dict, base_result: AnyCarbonResult) -> list:
     """Which of the base result's line items this catalog entry applies
     to -- matched on category (and cement_type, for cement-blend
-    substitutions) exactly as the catalog entry specifies."""
+    substitutions) exactly as the catalog entry specifies. Works against
+    either a BoqCarbonResult or a WoCarbonResult: _line_category/
+    _line_cement_type read the right field per line-item type (WO lines
+    always report cement_type=None, so a cement-blend entry's
+    base_cement_type filter correctly matches zero WO lines rather than
+    guessing)."""
     base_category = entry["base_category"]
     base_cement_type = entry.get("base_cement_type")  # present for cement-blend entries only
 
     matched = []
     for li in base_result.line_items:
-        if li.category != base_category:
+        if _line_category(li) != base_category:
             continue
         if li.gwp_kg_co2e is None:
             continue  # wasn't part of the total to begin with -- nothing to substitute
-        if base_cement_type is not None and li.cement_type != base_cement_type:
+        if base_cement_type is not None and _line_cement_type(li) != base_cement_type:
             continue
         matched.append(li)
     return matched
 
 
-def _recompute_line_at_substitute(entry: dict, li) -> Optional[float]:
+def _recompute_line_at_substitute(entry: dict, li: AnyLineItem) -> Optional[float]:
     """The line's GWP if it were 100% the substitute material, using the
-    SAME qty/uom/grade -- only the cement_type, category, or (for a fixed
-    EPD-sourced factor) the per-kg number itself changes."""
+    SAME qty/uom(unit)/grade -- only the cement_type, category, or (for a
+    fixed EPD-sourced factor) the per-kg number itself changes. Reads
+    _line_unit/_line_grade so this works identically for a WO line item
+    (unit/material_category field names) as for a BOQ one
+    (uom/category) -- compute_line_gwp itself is boq_carbon's own
+    category/unit-dispatch function, reused unchanged since both engines
+    share the same category vocabulary and unit-string conventions
+    (m3/m2/kg/MT/...)."""
     if "substitute_gwp_kgco2e_per_kg_fixed" in entry:
         # A real, specific, already-measured factor (e.g. a supplier's own
         # verified EPD) -- NOT run through get_steel_rebar_factor_per_kg's
@@ -116,16 +155,19 @@ def _recompute_line_at_substitute(entry: dict, li) -> Optional[float]:
         # this number already reflects the supplier's own real, declared
         # electricity mix. Applying CEA on top of it would double-count.
         per_kg = entry["substitute_gwp_kgco2e_per_kg_fixed"]
-        if _MASS_KG_UNITS.match(li.uom):
+        unit = _line_unit(li)
+        if unit is None:
+            return None
+        if _MASS_KG_UNITS.match(unit):
             return li.qty * per_kg
-        if _MASS_MT_UNITS.match(li.uom):
+        if _MASS_MT_UNITS.match(unit):
             return li.qty * 1000.0 * per_kg
         return None
     if "substitute_cement_type" in entry:
-        gwp, _note = compute_line_gwp(li.category, entry["substitute_cement_type"], li.grade, li.uom, li.qty)
+        gwp, _note = compute_line_gwp(_line_category(li), entry["substitute_cement_type"], _line_grade(li), _line_unit(li), li.qty)
         return gwp
     if "substitute_category" in entry:
-        gwp, _note = compute_line_gwp(entry["substitute_category"], None, None, li.uom, li.qty)
+        gwp, _note = compute_line_gwp(entry["substitute_category"], None, None, _line_unit(li), li.qty)
         return gwp
     raise ValueError(
         f"Catalog entry '{entry['id']}' has none of substitute_cement_type, "

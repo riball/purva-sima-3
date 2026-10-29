@@ -76,6 +76,32 @@ FOUNDATION_TYPE_STEEL_MULTIPLIER: dict[str, float] = {
     "pile": 1.20,
 }
 
+# --- Glazing (glass + aluminium framing) -----------------------------------
+# Same "DISCLOSED ASSUMPTION, NOT A VALIDATED COEFFICIENT" footing as the
+# two foundation-multiplier tables above -- Phase 1 has no real facade-area
+# or window-schedule data to draw from (it's a GFA-only conceptual
+# estimator), so these two single, GFA-anchored ratios stand in for it:
+#
+# - FACADE_AREA_PER_SQM_GFA: typical external (facade) wall area per sqm of
+#   GFA for a mid/high-rise RCC building. A commonly cited architectural
+#   rule of thumb, NOT derived from this project's own reference-project
+#   data the way concrete/steel ratios can be once a BOQ match exists.
+# - ALUMINIUM_FRAME_FRACTION_OF_GLAZED_AREA: of the glazed portion of that
+#   facade (glazing_pct, already a real, user-set Tier 3 field), the share
+#   that is aluminium framing rather than the glass pane itself -- a
+#   commonly cited curtain-wall/window framing ratio.
+#
+# Both numbers should be replaced with real reference-project ratios the
+# same way FALLBACK_CONCRETE_VOL_PER_SQM already gets superseded by a BOQ
+# match, as soon as this app has real facade/glazing BOQ data to learn one
+# from. The emission FACTORS multiplied against these areas (ef_kgco2e_per_kg
+# and areal_mass_kg_per_m2 for glass/aluminium) are NOT placeholders --
+# they're the same canonical, CEA-adjusted IFC India figures
+# app/services/emission_factors.py already serves to the BOQ/Work Order
+# carbon pipelines (app/data/ice_db/emission_factors.json).
+FACADE_AREA_PER_SQM_GFA = 0.35  # sqm facade per sqm GFA
+ALUMINIUM_FRAME_FRACTION_OF_GLAZED_AREA = 0.15  # fraction of glazed area that is frame, not glass
+
 
 def _foundation_type_key(project: ProjectSchema) -> Optional[str]:
     """Same duck-typing pattern used for cement_type below -- tier2's
@@ -92,6 +118,20 @@ def _foundation_type_key(project: ProjectSchema) -> Optional[str]:
 
 class MaterialBreakdown(BaseModel):
     material: str
+    # UX refinement: "why is the estimated material breakdown only limited
+    # to concrete and steel, i want it to add the top 5 materials just
+    # like the other parts of this project" -- material_category is the
+    # SAME fixed key set this app's BOQ/WO pipelines already use
+    # (coverage.py's TOP5_MATERIAL_CATEGORIES, and the frontend's shared
+    # MaterialBreakdownChart.jsx CATEGORY_COLORS/CATEGORY_LABELS):
+    # "concrete" | "reinforcement_steel" | "structural_steel" |
+    # "aluminium" | "glass". Added explicitly (rather than leaving the
+    # frontend to infer a category from quantity_unit, which breaks the
+    # moment two categories share a unit, e.g. glass/aluminium both being
+    # area-based) so every consumer of this breakdown -- the Conceptual
+    # Estimate donut AND the Project Dashboard's Material Composition
+    # chart -- colors/labels it identically to a real BOQ/WO breakdown.
+    material_category: str
     quantity: float
     quantity_unit: str
     factor_used: float
@@ -110,10 +150,17 @@ class CalculationResult(BaseModel):
     carbon_per_sqm: float
     carbon_per_sqft: float
     scope_note: str = (
-        "Concrete + steel only. Does not yet include cement/mortar, "
-        "bricks, glass, insulation, paint, or MEP. Concrete/steel factors "
-        "use IFC India data (CEA-adjusted) where cement_type is known, "
-        "falling back to unadjusted ICE M-grade factors otherwise."
+        "Concrete + steel + glazing (glass & aluminium framing, sized from "
+        "the Glazing % field). Does not yet include cement/mortar, brick/"
+        "blockwork, insulation, paint, structural (non-rebar) steel "
+        "sections, or MEP -- Phase 1 has no field yet from which to size "
+        "those honestly. Concrete/steel factors use IFC India data "
+        "(CEA-adjusted) where cement_type is known, falling back to "
+        "unadjusted ICE M-grade factors otherwise. Glass/aluminium use the "
+        "same canonical, CEA-adjusted IFC India factors the BOQ/Work "
+        "Order pipelines use, applied to a DISCLOSED, unvalidated facade-"
+        "area assumption (see FACADE_AREA_PER_SQM_GFA) -- not a measured "
+        "facade area."
     )
 
 
@@ -194,6 +241,7 @@ def calculate_embodied_carbon(
     breakdown.append(
         MaterialBreakdown(
             material=material_label,
+            material_category="concrete",
             quantity=concrete_vol_m3,
             quantity_unit="m3",
             factor_used=concrete_factor_per_m3,
@@ -234,6 +282,7 @@ def calculate_embodied_carbon(
     breakdown.append(
         MaterialBreakdown(
             material=material_label,
+            material_category="reinforcement_steel",
             quantity=steel_kg,
             quantity_unit="kg",
             factor_used=steel_factor_per_kg,
@@ -243,6 +292,67 @@ def calculate_embodied_carbon(
             quantity_source=f"{steel_source}{steel_foundation_note}",
         )
     )
+
+    # --- Glazing: glass + aluminium framing ---
+    # Sized from glazing_pct (a real, already-collected Tier 3 field) via
+    # the disclosed FACADE_AREA_PER_SQM_GFA/ALUMINIUM_FRAME_FRACTION_OF_
+    # GLAZED_AREA assumptions above -- see their comment for the full
+    # reasoning. Uses "m2" as the exposed quantity_unit (not "kg", which
+    # app/services/cost_estimation.py's estimate_cost() already treats as
+    # "this is reinforcement steel" -- an area unit keeps these two new
+    # rows out of that branch entirely rather than silently mis-costing
+    # them as steel). cost_estimation.py simply skips any non-m3/kg row,
+    # so glass/aluminium carbon IS included in the total above, but their
+    # cost is honestly left out of the Structural Cost Estimate -- there's
+    # no sourced glazing cost rate to use instead of fabricating one.
+    glazing_field = project.tier3.glazing_pct
+    glazing_pct = glazing_field.value
+    glazing_source = glazing_field.source if glazing_field.source != "unset" else "fallback-default"
+    if glazing_pct is None:
+        glazing_pct = 20.0  # same default llm_fallback.py already assigns when this field is left blank
+        glazing_source = "fallback-default"
+
+    if glazing_pct > 0:
+        from app.services.emission_factors import get_factor
+
+        facade_area_sqm = gfa * FACADE_AREA_PER_SQM_GFA
+        glazed_area_sqm = facade_area_sqm * (glazing_pct / 100.0)
+        aluminium_area_sqm = glazed_area_sqm * ALUMINIUM_FRAME_FRACTION_OF_GLAZED_AREA
+        glass_area_sqm = glazed_area_sqm - aluminium_area_sqm
+
+        glass_factor = get_factor("glass")
+        glass_areal_factor = glass_factor["ef_kgco2e_per_kg"] * glass_factor["areal_mass_kg_per_m2"]
+        glass_carbon_kg = glass_area_sqm * glass_areal_factor
+        breakdown.append(
+            MaterialBreakdown(
+                material="Glass (glazing)",
+                material_category="glass",
+                quantity=glass_area_sqm,
+                quantity_unit="m2",
+                factor_used=glass_areal_factor,
+                factor_unit="kgCO2e/m2",
+                factor_source="ifc_india",
+                carbon_kg=glass_carbon_kg,
+                quantity_source=f"glazing_pct:{glazing_source}, facade_area:disclosed-assumption",
+            )
+        )
+
+        aluminium_factor = get_factor("aluminium")
+        aluminium_areal_factor = aluminium_factor["ef_kgco2e_per_kg"] * aluminium_factor["areal_mass_kg_per_m2"]
+        aluminium_carbon_kg = aluminium_area_sqm * aluminium_areal_factor
+        breakdown.append(
+            MaterialBreakdown(
+                material="Aluminium (window/curtain-wall framing)",
+                material_category="aluminium",
+                quantity=aluminium_area_sqm,
+                quantity_unit="m2",
+                factor_used=aluminium_areal_factor,
+                factor_unit="kgCO2e/m2",
+                factor_source="ifc_india",
+                carbon_kg=aluminium_carbon_kg,
+                quantity_source=f"glazing_pct:{glazing_source}, facade_area:disclosed-assumption, frame_fraction:disclosed-assumption",
+            )
+        )
 
     total_carbon_kg = sum(item.carbon_kg for item in breakdown)
 

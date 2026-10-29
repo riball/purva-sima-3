@@ -229,6 +229,15 @@ export const api = {
     return handleResponse(res)
   },
 
+  // "I want to be able to delete some recent uploads" -- permanent delete,
+  // confirmed in JobResultsCompare before this is ever called.
+  deleteJob: async (jobId, companyId = 'provident') => {
+    const res = await fetch(`${API_BASE}/uploads/jobs/${encodeURIComponent(jobId)}?company_id=${encodeURIComponent(companyId)}`, {
+      method: 'DELETE',
+    })
+    return handleResponse(res)
+  },
+
   useJobAsBaseline: async (jobId, data) => {
     const res = await fetch(`${API_BASE}/uploads/jobs/${encodeURIComponent(jobId)}/use-as-baseline`, {
       method: 'POST',
@@ -442,6 +451,19 @@ export const api = {
 
   getCurrentState: async (projectId, companyId = 'provident') => {
     const res = await fetch(`${API_BASE}/phase4/projects/${encodeURIComponent(projectId)}/current-state?company_id=${encodeURIComponent(companyId)}`)
+    return handleResponse(res)
+  },
+
+  // "Even the material substitution section, I want to be able to see all
+  // the possible suggested material swaps just like the mock up" -- every
+  // catalog entry evaluated at its own max_recommended_pct against this
+  // project's real baseline (app/services/phase4.evaluate_catalog_preview,
+  // reusing substitution_engine.apply_substitution -- never a second,
+  // approximate calculation path). Read-only: nothing is persisted by this
+  // call. An entry with 0 affected lines comes back with applicable: false
+  // rather than a fabricated reduction.
+  getCatalogPreview: async (projectId, companyId = 'provident') => {
+    const res = await fetch(`${API_BASE}/phase4/projects/${encodeURIComponent(projectId)}/catalog-preview?company_id=${encodeURIComponent(companyId)}`)
     return handleResponse(res)
   },
 

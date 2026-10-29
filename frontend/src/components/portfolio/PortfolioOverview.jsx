@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import {
   Building2, TrendingUp, TrendingDown, Layers, ArrowUpDown, ChevronRight, Search, Pencil,
-  BarChart3, PieChart as PieChartIcon, FileSpreadsheet, Sparkles, Gauge,
+  BarChart3, PieChart as PieChartIcon, FileSpreadsheet, Sparkles, Gauge, ZoomIn, ZoomOut,
 } from 'lucide-react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -53,11 +53,13 @@ const STATUS_FILTERS = [
   { value: 'above_baseline', label: 'Above Baseline' },
 ]
 
-// Baseline=amber, Billed to Date=lime, Projected=cyan -- this app's own
-// already-established per-series convention (see CarbonDataExplorer.jsx's
-// SERIES map: baseline is always amber, cumulative/billed is always lime),
-// reused here rather than inventing a new one for this one chart.
-const SERIES_COLORS = { baseline: 'var(--accent-amber)', billed: 'var(--accent-lime)', projected: 'var(--accent-cyan)' }
+// Baseline Target -> Billed/Actual -> Projected is a PROGRESSION (swapping
+// the order would change its meaning), so this is an ordinal ramp, not
+// categorical identity -- see index.css's --chart-ord-* tokens' own
+// comment. These are the mockup's own sampled hex values (light mode),
+// pixel-extracted from the Portfolio comparison chart screenshot and
+// confirmed to pass the dataviz skill's `--ordinal` checks outright.
+const SERIES_COLORS = { baseline: 'var(--chart-ord-light)', billed: 'var(--chart-ord-mid)', projected: 'var(--chart-ord-dark)' }
 
 export default function PortfolioOverview() {
   const { projects, activeCompanyId, selectProject, navigate, isLoading: projectsLoading, loadProjects } = useProject()
@@ -68,6 +70,16 @@ export default function PortfolioOverview() {
   const [sortKey, setSortKey] = useState('variance')
   const [sortDir, setSortDir] = useState('desc')
   const [chartMode, setChartMode] = useState('comparison') // 'comparison' | 'distribution'
+  // "I should be able to Zoom into the graph in the portfolio page ... if
+  // i am interested in one project among all, i should be able to zoom
+  // into that one" -- real scroll/pinch zoom over the comparison chart's
+  // project axis. zoomWindow is an {start, end} index range into
+  // comparisonChartData; null means "fully zoomed out" (every tracked
+  // project visible), which is also what a plain re-zoom-out lands on
+  // rather than storing {0, length} explicitly (so it stays correct as
+  // more dashboards finish loading and comparisonChartData grows).
+  const [zoomWindow, setZoomWindow] = useState(null)
+  const chartWrapperRef = useRef(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [archetypeFilter, setArchetypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -215,7 +227,88 @@ export default function PortfolioOverview() {
       baseline: r.baselineT ? Math.round(r.baselineT * 10) / 10 : 0,
       billed: r.billedT ? Math.round(r.billedT * 10) / 10 : 0,
       projected: r.projectedT ? Math.round(r.projectedT * 10) / 10 : 0,
+      projectId: r.project.project_id,
     }))
+
+  const totalProjectsInChart = comparisonChartData.length
+
+  // Clamp the stored zoomWindow against the LIVE length of
+  // comparisonChartData every render (not just at scroll time) -- dashboards
+  // load in asynchronously, so the total can grow after a zoom gesture has
+  // already been made, and a stale {start, end} would otherwise slice out
+  // of range or show a now-wrong subset.
+  const zoomWindowEffective = useMemo(() => {
+    if (!zoomWindow || totalProjectsInChart === 0) return { start: 0, end: totalProjectsInChart }
+    const start = Math.max(0, Math.min(zoomWindow.start, Math.max(0, totalProjectsInChart - 1)))
+    const end = Math.max(start + 1, Math.min(zoomWindow.end, totalProjectsInChart))
+    return { start, end }
+  }, [zoomWindow, totalProjectsInChart])
+
+  const isZoomed = zoomWindowEffective.start > 0 || zoomWindowEffective.end < totalProjectsInChart
+
+  // The zoom window slices the comparison chart down to a contiguous range
+  // of projects (scroll/pinch, see the onWheel effect below); "All
+  // Projects" (zoomWindow === null, i.e. isZoomed === false) renders the
+  // full, unfiltered set.
+  const visibleComparisonChartData = comparisonChartData.slice(zoomWindowEffective.start, zoomWindowEffective.end)
+
+  // Real scroll/pinch zoom over the chart's project axis, replacing the old
+  // "Focus" dropdown. Attached as a native (non-passive) listener via a ref
+  // rather than React's onWheel: React's synthetic wheel handler is
+  // registered passive, so e.preventDefault() inside it can't actually stop
+  // the page from scrolling underneath the chart -- only a real
+  // addEventListener(..., { passive: false }) listener can.
+  //
+  // Plain scroll narrows/widens the window centered on the pointer's
+  // x-position (mapped to a project index within the CURRENTLY visible
+  // window, so repeated scrolling keeps zooming in around the same spot
+  // rather than re-centering on the full dataset each time). A trackpad
+  // pinch arrives as the same wheel event with ctrlKey: true (the standard
+  // browser pinch-to-wheel translation) and uses a larger step.
+  useEffect(() => {
+    const el = chartWrapperRef.current
+    if (!el || chartMode !== 'comparison') return undefined
+
+    function handleWheel(e) {
+      const total = comparisonChartData.length
+      if (total <= 1) return
+      e.preventDefault()
+
+      const rect = el.getBoundingClientRect()
+      const relX = rect.width > 0 ? Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)) : 0.5
+
+      setZoomWindow((prev) => {
+        const cur = prev && prev.end <= total && prev.start < prev.end ? prev : { start: 0, end: total }
+        const curSize = cur.end - cur.start
+        const pointerIndex = cur.start + relX * curSize
+
+        const step = e.ctrlKey ? 0.3 : 0.12 // pinch (ctrlKey) = bigger step than a plain scroll tick
+        const zoomingIn = e.deltaY < 0
+        const factor = zoomingIn ? 1 - step : 1 + step
+
+        let newSize = curSize * factor
+        newSize = Math.max(1, Math.min(total, newSize))
+
+        let newStart = pointerIndex - (pointerIndex - cur.start) * (newSize / curSize)
+        let newEnd = newStart + newSize
+        if (newStart < 0) { newEnd -= newStart; newStart = 0 }
+        if (newEnd > total) { newStart -= newEnd - total; newEnd = total }
+        newStart = Math.max(0, newStart)
+        newEnd = Math.min(total, newEnd)
+
+        const roundedStart = Math.round(newStart)
+        const roundedEnd = Math.max(roundedStart + 1, Math.round(newEnd))
+
+        // Fully zoomed back out -> null, so the window keeps tracking the
+        // live total instead of freezing at today's length.
+        if (roundedStart <= 0 && roundedEnd >= total) return null
+        return { start: roundedStart, end: roundedEnd }
+      })
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [chartMode, comparisonChartData.length])
 
   function openProject(projectId) {
     selectProject(projectId)
@@ -365,7 +458,28 @@ export default function PortfolioOverview() {
                 : 'Embodied carbon by material category, summed across every tracked project'}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: 2, padding: 3, background: 'rgba(var(--c-overlay),0.05)', borderRadius: 'var(--radius-md)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {chartMode === 'comparison' && totalProjectsInChart > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.72rem', color: 'var(--text-tertiary)' }}
+                  title="Scroll to zoom the chart; hold Ctrl or pinch on a trackpad to zoom faster"
+                >
+                  {isZoomed ? <ZoomIn size={12} /> : <ZoomOut size={12} />}
+                  Showing {visibleComparisonChartData.length} of {totalProjectsInChart}
+                </span>
+                {isZoomed && (
+                  <button
+                    onClick={() => setZoomWindow(null)}
+                    className="btn-secondary"
+                    style={{ fontSize: '0.72rem', padding: '5px 10px' }}
+                  >
+                    Reset Zoom
+                  </button>
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 2, padding: 3, background: 'rgba(var(--c-overlay),0.05)', borderRadius: 'var(--radius-md)' }}>
             <button
               onClick={() => setChartMode('comparison')}
               className="btn-secondary"
@@ -382,17 +496,18 @@ export default function PortfolioOverview() {
               <PieChartIcon size={13} />
               <span>Distribution</span>
             </button>
+            </div>
           </div>
         </div>
 
-        <div style={{ height: 320 }}>
+        <div ref={chartWrapperRef} style={{ height: 320 }}>
           {tracked.length === 0 ? (
             <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
               No tracked projects with a recorded baseline yet.
             </div>
           ) : chartMode === 'comparison' ? (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={comparisonChartData} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
+              <BarChart data={visibleComparisonChartData} margin={{ top: 10, right: 20, left: 10, bottom: 25 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(var(--c-overlay),0.08)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} unit=" t" />
@@ -401,9 +516,23 @@ export default function PortfolioOverview() {
                   formatter={(val) => [`${Number(val).toLocaleString()} tCO₂e`]}
                 />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 10 }} />
-                <Bar dataKey="baseline" name="Baseline Target" fill={SERIES_COLORS.baseline} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="billed" name="Billed to Date" fill={SERIES_COLORS.billed} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="projected" name="Projected" fill={SERIES_COLORS.projected} radius={[4, 4, 0, 0]} />
+                {/* "make sure that i can [go to] the particular project
+                    dashboard by clicking on the graph of the project" --
+                    clicking any bar (any of the three series) opens that
+                    exact project's dashboard, independent of the focus
+                    selector above. */}
+                <Bar
+                  dataKey="baseline" name="Baseline Target" fill={SERIES_COLORS.baseline} radius={[4, 4, 0, 0]}
+                  cursor="pointer" onClick={(data) => data?.projectId && openProject(data.projectId)}
+                />
+                <Bar
+                  dataKey="billed" name="Billed to Date" fill={SERIES_COLORS.billed} radius={[4, 4, 0, 0]}
+                  cursor="pointer" onClick={(data) => data?.projectId && openProject(data.projectId)}
+                />
+                <Bar
+                  dataKey="projected" name="Projected" fill={SERIES_COLORS.projected} radius={[4, 4, 0, 0]}
+                  cursor="pointer" onClick={(data) => data?.projectId && openProject(data.projectId)}
+                />
               </BarChart>
             </ResponsiveContainer>
           ) : portfolioCategoryTotals.length === 0 ? (
@@ -563,12 +692,10 @@ export default function PortfolioOverview() {
                       <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>projected t</div>
                     </div>
                     <div style={{ minWidth: 86, textAlign: 'right' }}>
-                      {r.variancePct !== null ? (
+                      {r.variancePct !== null && (
                         <span className={`badge ${exceeding ? 'badge-amber' : 'badge-lime'}`} style={{ fontSize: '0.7rem' }}>
                           {exceeding ? '+' : ''}{r.variancePct.toFixed(1)}%
                         </span>
-                      ) : (
-                        <span className="badge badge-muted" style={{ fontSize: '0.7rem' }}>No data</span>
                       )}
                     </div>
                     <div style={{ minWidth: 110, fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>

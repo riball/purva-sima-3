@@ -26,10 +26,11 @@ import { downloadCsv } from '../../utils/csvExport'
  *      regardless of the active theme.
  *
  * Audit content is confirmed-substitution events only, same restriction
- * ProjectDashboard.jsx's own Audit section already documents (only a
- * BOQ-sourced baseline's propose/confirm/reject/audit-log flow is
- * supported in this pass) -- this page shows the identical boqOnlyRestriction
- * banner rather than silently exporting an empty or misleading CSV.
+ * ProjectDashboard.jsx's own Audit section already documents (a BOQ- or
+ * Work-Order-sourced baseline's propose/confirm/reject/audit-log flow is
+ * supported; phase1_estimate-sourced projects are not) -- this page shows
+ * the identical boqOnlyRestriction banner rather than silently exporting
+ * an empty or misleading CSV.
  */
 
 export default function ReportsView() {
@@ -71,11 +72,11 @@ export default function ReportsView() {
       setBills(bList)
 
       // Same reliable signal ProjectDashboard.jsx's Alternatives/Audit
-      // sections use -- GET .../current-state has no BOQ-only restriction
-      // of its own (only propose/confirm/reject do), so checking
-      // dashboard.baseline.source_type is the one field that's always
-      // there and always accurate.
-      const restricted = dash?.baseline?.source_type !== 'boq'
+      // sections use -- GET .../current-state has no BOQ/WO-only
+      // restriction of its own (only propose/confirm/reject do), so
+      // checking dashboard.baseline.source_type is the one field that's
+      // always there and always accurate.
+      const restricted = dash?.baseline?.source_type !== 'boq' && dash?.baseline?.source_type !== 'wo'
       setBoqOnlyRestriction(restricted)
 
       if (!restricted) {
@@ -234,43 +235,78 @@ export default function ReportsView() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <StatCard
-              title="Baseline"
-              value={(dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)}
-              unit="tCO₂e"
-              subtitle="Fixed benchmark every bill is measured against"
-              accent="lime"
-            />
-            <StatCard
-              title="Billed to Date"
-              value={
-                dashboard.latest_bill_quantity_basis === 'present'
-                  ? (dashboard.latest_bill_gwp_kg_co2e ? (dashboard.latest_bill_gwp_kg_co2e / 1000).toFixed(1) : '0.0')
-                  : (dashboard.billed_to_date_gwp_kg_co2e ? (dashboard.billed_to_date_gwp_kg_co2e / 1000).toFixed(1) : '0.0')
-              }
-              unit="tCO₂e"
-              subtitle={`Latest period: ${dashboard.latest_period || 'None yet'}`}
-              accent="amber"
-            />
-            <StatCard
-              title="Project Completion"
-              value={dashboard.percent_complete ? `${dashboard.percent_complete.toFixed(1)}%` : '0%'}
-              subtitle={dashboard.percent_complete_source?.replace(/_/g, ' ') || 'Awaiting bills'}
-              accent="mint"
-            />
-            <StatCard
-              title="Projected at Completion"
-              value={dashboard.projected_total_gwp_kg_co2e ? (dashboard.projected_total_gwp_kg_co2e / 1000).toFixed(1) : (dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)}
-              unit="tCO₂e"
-              subtitle={
-                dashboard.projected_vs_baseline_pct !== null && dashboard.projected_vs_baseline_pct !== undefined
-                  ? `${dashboard.projected_vs_baseline_pct > 0 ? '+' : ''}${dashboard.projected_vs_baseline_pct.toFixed(1)}% vs Baseline`
-                  : 'At baseline estimate'
-              }
-              accent={dashboard.projected_vs_baseline_pct && dashboard.projected_vs_baseline_pct > 0 ? 'amber' : 'lime'}
-            />
+          <div>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>1. Embodied Carbon Summary</span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 8 }}>
+              <StatCard
+                title="Baseline"
+                value={(dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)}
+                unit="tCO₂e"
+                subtitle="Fixed benchmark every bill is measured against"
+                accent="lime"
+              />
+              <StatCard
+                title="Billed to Date"
+                value={
+                  dashboard.latest_bill_quantity_basis === 'present'
+                    ? (dashboard.latest_bill_gwp_kg_co2e ? (dashboard.latest_bill_gwp_kg_co2e / 1000).toFixed(1) : '0.0')
+                    : (dashboard.billed_to_date_gwp_kg_co2e ? (dashboard.billed_to_date_gwp_kg_co2e / 1000).toFixed(1) : '0.0')
+                }
+                unit="tCO₂e"
+                subtitle={`Latest period: ${dashboard.latest_period || 'None yet'}`}
+                accent="amber"
+              />
+              <StatCard
+                title="Project Completion"
+                value={dashboard.percent_complete ? `${dashboard.percent_complete.toFixed(1)}%` : '0%'}
+                subtitle={dashboard.percent_complete_source?.replace(/_/g, ' ') || 'Awaiting bills'}
+                accent="mint"
+              />
+              <StatCard
+                title="Projected at Completion"
+                value={dashboard.projected_total_gwp_kg_co2e ? (dashboard.projected_total_gwp_kg_co2e / 1000).toFixed(1) : (dashboard.baseline.total_gwp_kg_co2e / 1000).toFixed(1)}
+                unit="tCO₂e"
+                subtitle={
+                  dashboard.projected_vs_baseline_pct !== null && dashboard.projected_vs_baseline_pct !== undefined
+                    ? `${dashboard.projected_vs_baseline_pct > 0 ? '+' : ''}${dashboard.projected_vs_baseline_pct.toFixed(1)}% vs Baseline`
+                    : 'At baseline estimate'
+                }
+                accent={dashboard.projected_vs_baseline_pct && dashboard.projected_vs_baseline_pct > 0 ? 'amber' : 'lime'}
+              />
+            </div>
           </div>
+
+          {/* Cost Summary -- dashboard.baseline.total_value is already
+              computed by the backend for every baseline source type
+              (boq/wo: result.coverage.total_value; phase1_estimate:
+              cost_result.total_cost_inr -- see phase3.py's
+              baseline_from_*). Nothing new computed here, just surfaced
+              alongside the carbon figures so "Print / Save as PDF"
+              includes both, per the user's request. */}
+          {dashboard.baseline.total_value != null && (
+            <div>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>2. Cost Summary</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 8 }}>
+                <StatCard
+                  title="Total Project Value"
+                  value={`₹${(dashboard.baseline.total_value / 10000000).toFixed(2)}`}
+                  unit="Cr"
+                  subtitle={`As recorded on the ${dashboard.baseline.is_estimated ? 'Conceptual Estimate' : dashboard.baseline.source_type.toUpperCase()} baseline`}
+                  accent="amber"
+                />
+                <StatCard
+                  title="Cost per m²"
+                  value={
+                    dashboard.baseline.floor_area_sqm
+                      ? `₹${(dashboard.baseline.total_value / dashboard.baseline.floor_area_sqm).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                      : '-'
+                  }
+                  subtitle={dashboard.baseline.floor_area_sqm ? `Total value / ${dashboard.baseline.floor_area_sqm.toLocaleString(undefined, { maximumFractionDigits: 1 })} m² TBUA` : 'No floor area recorded on this baseline'}
+                  accent="cyan"
+                />
+              </div>
+            </div>
+          )}
 
           {currentState && !boqOnlyRestriction && (
             <div className="glass-panel" style={{ padding: 20 }}>
@@ -349,8 +385,8 @@ export default function ReportsView() {
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: '0.8125rem', color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
                 <Lock size={16} color="var(--accent-amber)" style={{ flexShrink: 0, marginTop: 2 }} />
                 <span>
-                  No audit trail is available for this project -- it requires a BOQ-sourced baseline. This project's baseline was recorded from a{' '}
-                  {dashboard.baseline.source_type === 'wo' ? 'Work Order' : dashboard.baseline.source_type === 'phase1_estimate' ? 'Conceptual Estimate' : dashboard.baseline.source_type}.
+                  No audit trail is available for this project -- it requires a BOQ or Work Order baseline. This project's baseline was recorded from a{' '}
+                  {dashboard.baseline.source_type === 'phase1_estimate' ? 'Conceptual Estimate' : dashboard.baseline.source_type}.
                 </span>
               </div>
             ) : auditLog.length === 0 ? (

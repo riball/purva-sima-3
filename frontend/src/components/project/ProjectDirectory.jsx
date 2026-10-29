@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Building2, MapPin, Search, ArrowRight, Layers, FlaskConical } from 'lucide-react'
+import { Building2, MapPin, Search, ArrowRight, Layers, FlaskConical, Trash2, AlertTriangle } from 'lucide-react'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import { aggregateCategories, CATEGORY_LABELS } from '../common/charts/MaterialBreakdownChart'
@@ -28,11 +28,32 @@ import { originLabel } from '../../utils/projectOrigin'
  * main grid.
  */
 export default function ProjectDirectory() {
-  const { projects, activeCompanyId, selectProject, navigate, isLoading: projectsLoading } = useProject()
+  const { projects, activeCompanyId, selectProject, navigate, deleteProject, isLoading: projectsLoading } = useProject()
 
   const [dashboards, setDashboards] = useState({}) // project_id -> dashboard | 'error'
   const [billsByProject, setBillsByProject] = useState({}) // project_id -> bills[] | 'error'
   const [searchQuery, setSearchQuery] = useState('')
+  // Permanent delete, backed by DELETE /projects/{id} (already wired on
+  // deleteProject in ProjectContext -- removes the name registry entry,
+  // Phase 1 record, and the whole Phase 3/4 directory in one call). Its
+  // own small confirmation modal, matching the delete-bill dialog style
+  // already established in TrackingChatHub.jsx, not a native confirm().
+  const [deleteTarget, setDeleteTarget] = useState(null) // project row | null
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    try {
+      await deleteProject(deleteTarget.project_id, activeCompanyId)
+      setDeleteTarget(null)
+    } catch {
+      // deleteProject already surfaced a toast -- leave the confirm
+      // dialog open so the user can retry or cancel.
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -126,7 +147,7 @@ export default function ProjectDirectory() {
   }
 
   function statusBadge(r) {
-    if (r.deviationPct === null) return { label: 'No Data', type: 'badge-muted' }
+    if (r.deviationPct === null) return null
     return r.deviationPct > 0 ? { label: 'Above Baseline', type: 'badge-amber' } : { label: 'On Track', type: 'badge-lime' }
   }
 
@@ -143,12 +164,14 @@ export default function ProjectDirectory() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {p.archetype && <span className="badge badge-mint" style={{ fontSize: '0.68rem' }}>{p.archetype}</span>}
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                {p.construction_stage || 'Stage unset'}
-                {r.completionPct !== null && ` (${r.completionPct.toFixed(0)}%)`}
-              </span>
+              {p.construction_stage && (
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  {p.construction_stage}
+                  {r.completionPct !== null && ` (${r.completionPct.toFixed(0)}%)`}
+                </span>
+              )}
             </div>
-            <span className={`badge ${status.type}`} style={{ fontSize: '0.68rem', flexShrink: 0 }}>{status.label}</span>
+            {status && <span className={`badge ${status.type}`} style={{ fontSize: '0.68rem', flexShrink: 0 }}>{status.label}</span>}
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -237,14 +260,25 @@ export default function ProjectDirectory() {
           <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
             Last updated: {p.latest_billed_date || 'never'}
           </span>
-          <button
-            onClick={(e) => { e.stopPropagation(); openProject(p.project_id) }}
-            className="btn-primary"
-            style={{ fontSize: '0.75rem', padding: '7px 12px' }}
-          >
-            <span>Open Project Dashboard</span>
-            <ArrowRight size={13} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget(p) }}
+              className="btn-secondary"
+              title="Delete project"
+              aria-label="Delete project"
+              style={{ fontSize: '0.75rem', padding: '7px 9px', color: 'var(--accent-rose-light)' }}
+            >
+              <Trash2 size={13} />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); openProject(p.project_id) }}
+              className="btn-primary"
+              style={{ fontSize: '0.75rem', padding: '7px 12px' }}
+            >
+              <span>Open Project Dashboard</span>
+              <ArrowRight size={13} />
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -316,6 +350,35 @@ export default function ProjectDirectory() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 18 }}>
             {betaRows.map((r) => <ProjectCard key={r.project.project_id} r={r} />)}
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', backdropFilter: 'blur(8px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+        >
+          <div className="glass-panel-elevated animate-fade-in" style={{ width: '100%', maxWidth: 420, padding: 28 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <AlertTriangle size={20} color="var(--accent-rose-light)" />
+              <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)' }}>Delete this project?</h3>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: 22, lineHeight: 1.5 }}>
+              This permanently removes{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>"{deleteTarget.project_name || deleteTarget.project_id}"</strong>{' '}
+              — its Phase 1 record, baseline, and every bill logged against it. This cannot be undone.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button type="button" onClick={() => setDeleteTarget(null)} className="btn-secondary" disabled={isDeleting}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleConfirmDelete} className="btn-danger" disabled={isDeleting}>
+                {isDeleting ? 'Deleting...' : 'Delete Project'}
+              </button>
+            </div>
           </div>
         </div>
       )}

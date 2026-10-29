@@ -119,6 +119,21 @@ class Phase3Baseline(BaseModel):
         "this baseline's total_value/total_gwp_kg_co2e, never against "
         "another bill."
     )
+    # UX refinement: "even in the project dashboard, there is no chart
+    # shown at all for the conceptual estimated projects, i want it to
+    # give estimated graphs". Only ever set for source_type=
+    # 'phase1_estimate' (see baseline_from_phase1_estimate below) -- a
+    # snapshot of that estimate's own CalculationResult.breakdown, reshaped
+    # into the same {category, gwp_kg_co2e} shape a real bill's
+    # category_breakdown already uses (see BillPeriod.category_breakdown),
+    # so the Project Dashboard's existing MaterialBreakdownChart can render
+    # it unchanged. A SNAPSHOT, not a live recompute: if calculate_embodied_
+    # carbon()'s own logic changes later, an already-locked baseline keeps
+    # showing exactly the breakdown it was locked with -- same "Immutable
+    # design" guarantee the Directory card already states for the baseline
+    # total itself. None for every 'boq'/'wo' baseline, which gets its
+    # real per-bill category_breakdown from actual bills instead.
+    material_breakdown: Optional[list[dict]] = None
 
 
 BillSource = Literal["xlsx_boq", "pdf_cop"]
@@ -388,15 +403,18 @@ def delete_project_data(company_id: str, project_id: str) -> bool:
     return True
 
 
-def save_source_result(company_id: str, project_id: str, result: "BoqCarbonResult") -> None:
-    """Workstream 14: persists the full BOQ result (line items included)
-    alongside the baseline -- see company_store.phase3_source_result_path's
-    own docstring for why this is a separate, mutable file. Called once at
-    baseline-recording time (app/api/phase3.py's record_baseline) with the
-    ORIGINAL computed result; from then on, only app/services/phase4.py's
-    confirm_recommendation() ever overwrites it, each time with a new
-    result that's still the product of the same real calculation math,
-    never a hand-edited number.
+def save_source_result(company_id: str, project_id: str, result: "BoqCarbonResult | WoCarbonResult") -> None:
+    """Workstream 14: persists the full BOQ or Work-Order result (line
+    items included) alongside the baseline -- see
+    company_store.phase3_source_result_path's own docstring for why this is
+    a separate, mutable file (the filename itself is already neutral, not
+    boq-specific). Called once at baseline-recording time
+    (app/api/phase3.py's record_baseline) with the ORIGINAL computed
+    result -- now for EITHER source_type='boq' or 'wo', closing the gap
+    where only the BOQ branch used to call this; from then on, only
+    app/services/phase4.py's confirm_recommendation() ever overwrites it,
+    each time with a new result that's still the product of the same real
+    calculation math, never a hand-edited number.
     """
     # Atomic write-then-rename -- see company_store.atomic_write_json's
     # docstring. The Phase 4 confirm flow and Phase 3's own dashboard
@@ -406,11 +424,20 @@ def save_source_result(company_id: str, project_id: str, result: "BoqCarbonResul
     company_store.atomic_write_json(path, result.model_dump(mode="json"))
 
 
-def load_source_result(company_id: str, project_id: str) -> Optional["BoqCarbonResult"]:
+def load_source_result(company_id: str, project_id: str) -> Optional["BoqCarbonResult | WoCarbonResult"]:
+    """Which Pydantic type to validate against is resolved from the
+    project's OWN recorded baseline (source_type='boq' vs 'wo') -- the file
+    itself has no type tag, so this is the one place that distinction has
+    to be made explicitly, rather than guessing from shape.
+    """
     path = company_store.phase3_source_result_path(company_id, project_id)
     if not path.exists():
         return None
-    return BoqCarbonResult.model_validate(json.loads(path.read_text()))
+    raw = json.loads(path.read_text())
+    baseline = load_baseline(company_id, project_id)
+    if baseline is not None and baseline.source_type == "wo":
+        return WoCarbonResult.model_validate(raw)
+    return BoqCarbonResult.model_validate(raw)
 
 
 def save_bill_period(bill: BillPeriod, overwrite: bool = False) -> None:
@@ -621,6 +648,15 @@ def baseline_from_phase1_estimate(project_id: str, company_id: str) -> Phase3Bas
             "total_gwp_kg_co2e, never against another bill. Replace this with a real baseline "
             "(source_type='boq' or 'wo', overwrite=True) once a Bill of Quantities exists."
         ),
+        material_breakdown=[
+            {
+                "category": item.material_category,
+                "gwp_kg_co2e": item.carbon_kg,
+                "line_item_count": 1,
+                "pct_of_total": (item.carbon_kg / carbon_result.total_carbon_kg * 100) if carbon_result.total_carbon_kg else 0,
+            }
+            for item in carbon_result.breakdown
+        ],
     )
 
 

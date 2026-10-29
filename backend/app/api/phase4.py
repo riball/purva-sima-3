@@ -86,3 +86,15 @@ def get_current_state(project_id: str, company_id: str = company_store.DEFAULT_C
         return phase4.get_current_state_summary(company_id, project_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/projects/{project_id}/catalog-preview", response_model=list[phase4.CatalogPreviewEntry])
+def get_catalog_preview(project_id: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> list[phase4.CatalogPreviewEntry]:
+    """Powers the Alternatives card grid -- every catalog entry evaluated
+    against this project's current state at once (see
+    phase4.evaluate_catalog_preview's own docstring), instead of the
+    frontend asking for one substitution_id at a time."""
+    try:
+        return phase4.evaluate_catalog_preview(company_id, project_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

@@ -7,12 +7,25 @@ import React, { useMemo } from 'react'
 // assignment (e.g. PortfolioOverview's Material Distribution pie / Largest
 // Contributor column) reuse this exact mapping rather than redefining their
 // own -- dataviz: "color follows the entity," never reassigned per screen.
+// Fixed-order nominal categorical assignment -- see index.css's own
+// `--chart-cat-*` comment for why these come from the dataviz skill's
+// validated default theme (blue/orange/aqua/yellow/magenta/green)
+// rather than a literal copy of the mockup's near-monochrome green+tan
+// shades: 6 material categories are genuinely nominal identity (swapping
+// their order changes nothing), and the mockup's own hues, when run
+// through the skill's validator, fail its hard normal-vision-separation
+// gate (worst adjacent pair well under the required threshold) -- two
+// categories a reader, colorblind or not, could not reliably tell apart
+// by color alone. Order is fixed and never reassigned per screen
+// (dataviz: "color follows the entity").
 export const CATEGORY_COLORS = {
-  concrete: 'var(--accent-lime)',
-  reinforcement_steel: 'var(--accent-amber)',
-  structural_steel: 'var(--accent-cyan)',
-  aluminium: 'var(--accent-violet)',
-  glass: 'var(--accent-emerald)',
+  concrete: 'var(--chart-cat-1)',
+  reinforcement_steel: 'var(--chart-cat-2)',
+  structural_steel: 'var(--chart-cat-3)',
+  aluminium: 'var(--chart-cat-4)',
+  glass: 'var(--chart-cat-5)',
+  brickwork: 'var(--chart-cat-6)',
+  blockwork_aac: 'var(--chart-cat-6)',
 }
 export const FALLBACK_COLOR = 'var(--text-tertiary)'
 export const CATEGORY_LABELS = {
@@ -21,6 +34,8 @@ export const CATEGORY_LABELS = {
   structural_steel: 'Structural Steel',
   aluminium: 'Aluminium',
   glass: 'Glass',
+  brickwork: 'Brickwork',
+  blockwork_aac: 'AAC Blockwork',
 }
 
 /**

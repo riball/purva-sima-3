@@ -146,9 +146,7 @@ async def record_baseline(
             # Workstream 14 (Phase 4): stash the full structured result
             # (line items included) alongside the baseline -- this is
             # what confirm_recommendation() overlays confirmed changes
-            # onto later. WO-sourced baselines don't get this yet (see
-            # phase4.py's module docstring for why that's a disclosed,
-            # deliberate scope cut, not an oversight).
+            # onto later. WO-sourced baselines get this too, below.
             phase3.save_source_result(company_id, project_id, result)
         else:
             resolved_master_path = (
@@ -173,6 +171,11 @@ async def record_baseline(
                 structural_system_type=structural_system_type, num_floors=num_floors, typology=typology,
                 project_name=project_name,
             )
+            # Mirrors the BOQ branch above -- this is what closes the gap
+            # that kept Alternatives/Audit Trail/Milestone Ledger blocked
+            # for every Work-Order-sourced project (phase4.py's
+            # _load_current_state() reads this same file).
+            phase3.save_source_result(company_id, project_id, result)
 
         phase3.save_baseline(baseline)
         return baseline

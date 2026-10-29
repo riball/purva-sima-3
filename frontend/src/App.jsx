@@ -8,6 +8,7 @@ import PortfolioOverview from './components/portfolio/PortfolioOverview'
 import ConceptualEstimatePage from './components/phase1/ConceptualEstimatePage'
 import Phase2View from './components/phase2/Phase2View'
 import JobDashboardPage from './components/phase2/JobDashboardPage'
+import CarbonTrackingPage from './components/tracking/CarbonTrackingPage'
 import MaterialMappingQueue from './components/mapping/MaterialMappingQueue'
 import FactorsView from './components/factors/FactorsView'
 import ReportsView from './components/reports/ReportsView'
@@ -19,15 +20,13 @@ import OperationalEmissionsView from './components/opex/OperationalEmissionsView
 // the approved adaptation plan). Each placeholder below is replaced as
 // its own build phase completes.
 // 'project' and 'tracking' are two separate nav items in the Sima
-// CarbonOS design (Projects & Detail / Carbon Tracking), but the real
-// backend's data for them has always lived on one screen -- TrackingChatHub
-// already merged Phase 3 (dashboard/baseline/chat) and Phase 5 (bill
-// reconciliation) into a single real view earlier this session, per an
-// explicit "merge tracking & chat" product decision. Phase 1 carried that
-// same merge forward: both nav ids render the same real ProjectDashboard,
-// rather than splitting one real feature across two placeholder screens
-// just to match the mockup's nav count. As each further phase lands, its
-// view id is added here and removed from PlaceholderView's fallback.
+// CarbonOS design (Projects & Detail / Carbon Tracking). They used to
+// render the same real ProjectDashboard component (an earlier "merge
+// tracking & chat" product decision), but 'tracking' now has its own
+// real, carbon-only view (CarbonTrackingPage) distinct from the full
+// Project Dashboard -- see the approved plan for why. As each further
+// phase lands, its view id is added here and removed from
+// PlaceholderView's fallback.
 const VIEW_COMPONENTS = {
   overview: PortfolioOverview,
   // 'project' is now the Directory grid (the mockup's "Projects &
@@ -35,12 +34,10 @@ const VIEW_COMPONENTS = {
   // called this id 'Projects Directory' before any Directory existed to
   // render there, so this finally matches that label. Opening a card
   // navigates to the new 'project-dashboard' id below, which is where
-  // ProjectDashboard itself now lives; 'tracking' still goes straight to
-  // ProjectDashboard unchanged -- an existing, intentional shortcut that
-  // bypasses the Directory, not something this rebuild was asked to touch.
+  // ProjectDashboard itself now lives.
   project: ProjectDirectory,
   'project-dashboard': ProjectDashboard,
-  tracking: ProjectDashboard,
+  tracking: CarbonTrackingPage,
   // Conceptual Estimate rebuild: single-page layout matching the mockup
   // (3 numbered sections + a persistent live results panel) replaces the
   // old 5-step wizard here. Phase1Wizard.jsx and its step components are
@@ -61,7 +58,7 @@ const VIEWS = {
   'conceptual-estimate': { title: 'Conceptual Estimate', phase: 'Phase 3', description: 'The real Phase 1 tiered form and calculation, restyled -- only the fields the backend actually supports.' },
   'analyze-boq': { title: 'Analyze a BOQ', phase: 'Phase 4', description: 'Upload → Results, wired to the real BOQ/Work Order carbon-calculation endpoints.' },
   'job-dashboard': { title: 'Upload Result Dashboard', phase: 'Phase 4', description: 'Full-screen detail view for one BOQ/Work Order upload result -- reached from Analyze a BOQ\'s "View Dashboard" action.' },
-  tracking: { title: 'Carbon Tracking', phase: 'Phase 1', description: 'Bill timeline and carbon trajectory, wired to the real Phase 3 dashboard/bills endpoints.' },
+  tracking: { title: 'Carbon Tracking', phase: 'Phase 1', description: 'Carbon-only summary, trajectory, and material breakdown for a project, wired to the real Phase 3 dashboard/bills endpoints.' },
   reports: { title: 'Reports & Audits', phase: 'Phase 7', description: 'CSV export and a printable summary, built from real dashboard/bill/audit-log data.' },
   mapping: { title: 'Material Mapping Queue', phase: 'Phase 5', description: 'Company-scoped item-code classification review, wired to the real onboarding pipeline.' },
   settings: { title: 'Emission Factors & Settings', phase: 'Phase 6', description: 'The real versioned emission-factor history.' },

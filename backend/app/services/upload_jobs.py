@@ -226,6 +226,15 @@ def use_job_as_baseline(
             structural_system_type=structural_system_type, num_floors=num_floors, typology=typology,
             project_name=project_name,
         )
+        # Bug fix (found while building Phase 4's catalog-preview grid): this
+        # branch recorded the baseline but never persisted the structured
+        # source result, unlike the boq branch above and unlike
+        # api/phase3.py's own record_baseline endpoint (which saves it for
+        # WO too). Without it, phase4._load_current_state can't find a
+        # structured result at all for any project baselined via "Use as
+        # Baseline" from a WO upload job -- not even a legitimate
+        # applicable: false, just a hard "record its baseline again" error.
+        phase3.save_source_result(company_id, project_id, result)
 
     phase3.save_baseline(baseline)
     job_store.set_project_id(company_id, job_id, project_id)
