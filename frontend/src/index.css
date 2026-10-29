@@ -125,19 +125,37 @@
         before deciding this). Rather than ship a material-hotspot chart
         two material categories of which a colorblind -- or even a
         fully color-sighted -- viewer genuinely cannot tell apart, these
-        slots use the dataviz skill's own pre-validated default
-        categorical theme (references/palette.md) instead: same
-        method, same "run the validator, don't eyeball it" discipline
-        this whole skill is built around, just not a literal hex-for-hex
-        copy of the mockup for this one chart. Disclosed plainly, not
-        silently swapped. */
+        slots started from the dataviz skill's own pre-validated default
+        categorical theme (references/palette.md): same method, same
+        "run the validator, don't eyeball it" discipline this whole
+        skill is built around, just not a literal hex-for-hex copy of
+        the mockup for this one chart.
+
+        Follow-up request: "no orange, blue / dark blue / yellow is
+        accepted, it should go well with green." The default theme's
+        slot 2 (orange, reinforcement_steel) and slot 4 (amber --
+        visually reads as orange too, aluminium) are swapped for an
+        indigo/dark-blue and a cleaner olive-yellow respectively --
+        chosen by trying candidates against validate_palette.js until
+        one cleared every gate (never eyeballed): slot 2 sits far enough
+        from slot 1's sky blue in BOTH lightness and hue to still clear
+        the >=15 normal-vision floor despite both being "blue" family
+        (a plain lightness-only navy of the same hue could not -- two
+        same-hue marks within one lightness band cap out around ΔE 13-14,
+        confirmed by testing); slot 4's yellow is pulled toward olive
+        (R approx G, blue channel at 0) rather than gold/amber specifically
+        so it no longer reads as orange next to the real oranges removed
+        from this set. Light and dark got independently-tuned hex values
+        (not one pair auto-darkened) since the lightness band itself
+        differs per mode (0.43-0.77 light vs 0.48-0.67 dark) -- re-run
+        validate_palette.js for both modes if these ever change again. */
   --chart-ord-light: #486D57;
   --chart-ord-mid: #508362;
   --chart-ord-dark: #60996C;
   --chart-cat-1: #3987E5;  /* concrete */
-  --chart-cat-2: #D95926;  /* reinforcement_steel */
+  --chart-cat-2: #5A49B2;  /* reinforcement_steel -- indigo/dark blue, was orange */
   --chart-cat-3: #199E70;  /* structural_steel */
-  --chart-cat-4: #C98500;  /* aluminium */
+  --chart-cat-4: #B08A00;  /* aluminium -- olive-yellow, was amber/orange */
   --chart-cat-5: #D55181;  /* glass */
   --chart-cat-6: #008300;  /* brickwork / masonry / blockwork_aac */
 
@@ -271,9 +289,9 @@
   --chart-ord-mid: #5B8266;
   --chart-ord-dark: #214B37;
   --chart-cat-1: #2A78D6;
-  --chart-cat-2: #EB6834;
+  --chart-cat-2: #4A3AA7;  /* indigo/dark blue, was orange -- see dark theme's comment above */
   --chart-cat-3: #1BAF7A;
-  --chart-cat-4: #EDA100;
+  --chart-cat-4: #C9A800;  /* olive-yellow, was amber/orange */
   --chart-cat-5: #E87BA4;
   --chart-cat-6: #008300;
 

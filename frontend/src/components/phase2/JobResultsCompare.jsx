@@ -170,13 +170,24 @@ export default function JobResultsCompare({ jobs, jobNameMap = {}, onJobDeleted 
 
           return (
             <div key={job.job_id} className="glass-panel" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {job.kind === 'boq' ? <FileSpreadsheet size={16} color="var(--accent-lime)" /> : <FileText size={16} color="var(--accent-lime)" />}
-                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{job.source_filename}</span>
+              {/* Bug found while testing against a real filename
+                  ("Provident_Ecopolitan_WO_KPIL.pdf" -- one long
+                  underscore-joined run with no space for the browser to
+                  wrap on): with no minWidth:0/overflow constraint on the
+                  filename, a long unbroken name pushed this whole row
+                  past the card's width, shoving the status badge AND the
+                  delete button out of view entirely -- not just visually
+                  crowded, genuinely unclickable. The filename now
+                  truncates with an ellipsis (full name still available
+                  via the title attribute) and the status+delete group
+                  gets flexShrink:0 so it's never the thing that gives. */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }} title={job.source_filename}>
+                  {job.kind === 'boq' ? <FileSpreadsheet size={16} color="var(--accent-lime)" style={{ flexShrink: 0 }} /> : <FileText size={16} color="var(--accent-lime)" style={{ flexShrink: 0 }} />}
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{job.source_filename}</span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', fontWeight: 600, color: meta.color }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', fontWeight: 600, color: meta.color, whiteSpace: 'nowrap' }}>
                     <StatusIcon size={13} className={meta.spin ? 'spin' : ''} />
                     {meta.label}
                   </span>

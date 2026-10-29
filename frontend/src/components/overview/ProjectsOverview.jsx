@@ -78,7 +78,7 @@ export default function ProjectsOverview({ onNavigatePhase }) {
           </div>
 
           <h1 style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 10 }}>
-            Sima CarbonOS
+            Sima
           </h1>
 
           <p style={{ fontSize: '0.9375rem', color: 'var(--text-tertiary)', lineHeight: 1.5, marginBottom: 20 }}>

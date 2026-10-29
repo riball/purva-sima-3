@@ -104,7 +104,7 @@ export default function AppShell({ currentView, setCurrentView, children }) {
               <div className="sidebar-brand-icon">S</div>
               {!sidebarCollapsed && (
                 <div className="sidebar-brand-text">
-                  <span className="sidebar-brand-title">Sima CarbonOS</span>
+                  <span className="sidebar-brand-title">Sima</span>
                   <span className="sidebar-brand-subtitle">Embodied Carbon</span>
                 </div>
               )}

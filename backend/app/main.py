@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import boq_carbon, boq_carbon_substitute, calculate, companies, factors, form, onboarding, operational_emissions, phase3, phase4, projects, refine, substitute, uploads, wo_carbon
 
-app = FastAPI(title="Sima CarbonOS API")
+app = FastAPI(title="Sima API")
 
 # Required for the frontend (Vite dev server) to be able to call this API
 # at all -- without this middleware, browsers block every request with a

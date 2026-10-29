@@ -7,11 +7,11 @@ import { useProject } from '../../context/ProjectContext'
 export default function LandingPage({ onNavigate }) {
   const { selectProject } = useProject()
   return (
-    <div className="landing-page" style={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column', 
-      justifyContent: 'center', 
+    <div className="landing-page" style={{
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
       alignItems: 'center',
       padding: '24px',
       textAlign: 'center',
@@ -21,6 +21,19 @@ export default function LandingPage({ onNavigate }) {
       position: 'relative',
       overflow: 'hidden'
     }}>
+      {/* Brand mark -- same sidebar-brand-* classes AppShell's sidebar
+          uses, so the "S" wordmark reads identically here and once
+          you're inside the app proper. This is the one screen in the app
+          with no sidebar at all, so it needs its own, lightweight brand
+          header rather than borrowing AppShell's chrome. */}
+      <div style={{ position: 'absolute', top: 24, left: 28, zIndex: 2, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="sidebar-brand-icon">S</div>
+        <div className="sidebar-brand-text" style={{ textAlign: 'left' }}>
+          <span className="sidebar-brand-title">Sima</span>
+          <span className="sidebar-brand-subtitle">Embodied Carbon</span>
+        </div>
+      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -65,7 +78,7 @@ export default function LandingPage({ onNavigate }) {
               // button for why this has to happen before navigating,
               // not just on the wizard's own internal button.
               selectProject(null)
-              onNavigate('phase1')
+              onNavigate('conceptual-estimate')
             }}
             className="btn-primary"
             style={{ padding: '14px 32px', fontSize: '1rem' }}

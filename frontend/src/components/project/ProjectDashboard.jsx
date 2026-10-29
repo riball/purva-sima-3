@@ -6,7 +6,7 @@ import {
   Maximize2, Minimize2, RotateCcw, LayoutGrid, Wand2,
 } from 'lucide-react'
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
@@ -130,28 +130,40 @@ const SECTIONS = [
 // Item 4 ("name every section like how the mockup has named it") applied
 // to the chart grid's own titles, not just page section headers --
 // `subtitle` is the muted line ChartCardBlock now shows under each title.
-// `chartType` is the single chart form this codebase actually renders for
-// that dataset today (see ChartBuilderModal's own comment on why the
-// Custom Configurator's type picker is a disabled single-option select
-// rather than a real multi-type switch -- an honest reflection of scope,
-// not a placeholder bug).
+// `chartTypes` is the REAL, switchable set of render forms this dataset
+// supports -- every entry here actually renders differently when picked
+// (never a cosmetic label on top of one fixed shape). `carbon-over-time`
+// (Trajectory) only ever lists one entry here because it already has its
+// OWN, richer per-series type picker built into CarbonDataExplorer itself
+// (line/bar/area/points, independently per metric) -- that's not a gap to
+// fill, it's a different (better) place to offer the same choice, so
+// ChartCardBlock's header switcher stays hidden for it and the chart's own
+// controls are what the user actually touches.
 const CHART_DATASETS = [
-  { id: 'carbon-over-time', label: 'Trajectory', subtitle: 'Baseline vs cumulative billed carbon over time', chartType: 'Combo (line + bar)' },
-  { id: 'material-breakdown', label: 'Share by Material', subtitle: 'Proportion of total carbon by material category', chartType: 'Donut' },
-  { id: 'material-ranking', label: 'Hotspot Ranking', subtitle: 'Highest-impact material categories, ranked', chartType: 'Horizontal Bar' },
-  { id: 'substitution-impact', label: 'Substitution Impact', subtitle: 'Current spec vs. verified lower-carbon alternative, per catalog entry', chartType: 'Grouped Bar' },
-  { id: 'progress-vs-intensity', label: 'Carbon Intensity Over Time', subtitle: 'kgCO₂e per m² across logged bills', chartType: 'Line' },
+  { id: 'carbon-over-time', label: 'Trajectory', subtitle: 'Baseline vs cumulative billed carbon over time', chartTypes: [{ id: 'combo', label: 'Combo (per-series, in-chart)' }] },
+  { id: 'material-breakdown', label: 'Share by Material', subtitle: 'Proportion of total carbon by material category', chartTypes: [{ id: 'donut', label: 'Donut' }, { id: 'pie', label: 'Pie' }] },
+  { id: 'material-ranking', label: 'Hotspot Ranking', subtitle: 'Highest-impact material categories, ranked', chartTypes: [{ id: 'horizontal-bar', label: 'Horizontal Bar' }, { id: 'vertical-bar', label: 'Vertical Bar' }] },
+  { id: 'substitution-impact', label: 'Substitution Impact', subtitle: 'Current spec vs. verified lower-carbon alternative, per catalog entry', chartTypes: [{ id: 'horizontal-grouped-bar', label: 'Grouped Bar (Horizontal)' }, { id: 'vertical-grouped-bar', label: 'Grouped Bar (Vertical)' }] },
+  { id: 'progress-vs-intensity', label: 'Carbon Intensity Over Time', subtitle: 'kgCO₂e per m² across logged bills', chartTypes: [{ id: 'line', label: 'Line' }, { id: 'area', label: 'Area' }] },
 ]
+
+// Small helper so every call site asking "what chart type is this card
+// actually using" agrees on the same fallback (its dataset's first listed
+// type) rather than each guessing independently.
+function defaultChartTypeFor(datasetId) {
+  const meta = CHART_DATASETS.find((d) => d.id === datasetId)
+  return meta?.chartTypes?.[0]?.id
+}
 
 // Phase E's "4 mockup cards instead of 1" default layout, also what
 // "Reset Layout" restores. Always rebuilt with fresh ids (never the same
 // array reference reused across projects/resets) so React never confuses
 // one project's expand/collapse state for another's.
 const defaultChartCards = () => [
-  { id: `c-${Date.now()}-traj`, dataset: 'carbon-over-time' },
-  { id: `c-${Date.now()}-hot`, dataset: 'material-ranking' },
-  { id: `c-${Date.now()}-share`, dataset: 'material-breakdown' },
-  { id: `c-${Date.now()}-sub`, dataset: 'substitution-impact' },
+  { id: `c-${Date.now()}-traj`, dataset: 'carbon-over-time', chartType: defaultChartTypeFor('carbon-over-time') },
+  { id: `c-${Date.now()}-hot`, dataset: 'material-ranking', chartType: defaultChartTypeFor('material-ranking') },
+  { id: `c-${Date.now()}-share`, dataset: 'material-breakdown', chartType: defaultChartTypeFor('material-breakdown') },
+  { id: `c-${Date.now()}-sub`, dataset: 'substitution-impact', chartType: defaultChartTypeFor('substitution-impact') },
 ]
 
 // The Interactive Chart Builder's 4 named Guided Presets (mockup-named),
@@ -190,7 +202,13 @@ function ChartTooltipBox({ children }) {
 // Section 3's breakdown chart and the Materials table both use, just
 // rendered as a sorted horizontal bar ranking with a real hover tooltip
 // (dataviz: hover is default, not optional).
-function MaterialRankingChart({ bills, height = 320 }) {
+// `variant`: 'horizontal-bar' (default, ranked list reads top-to-bottom --
+// best for >4 categories) or 'vertical-bar' (standard column chart --
+// what most people mean by "bar chart") per CHART_DATASETS' real,
+// switchable chartTypes for this dataset. Same data, same colors, same
+// tooltip shape either way -- only axis orientation (and so label
+// placement) actually changes between the two.
+function MaterialRankingChart({ bills, height = 320, variant = 'horizontal-bar' }) {
   const { rows } = useMemo(() => aggregateCategories(bills), [bills])
   if (rows.length === 0) return <EmptyNote text="No category data yet -- add a bill to see material ranking." />
 
@@ -200,6 +218,49 @@ function MaterialRankingChart({ bills, height = 320 }) {
     tonnes: r.total / 1000,
   }))
 
+  const tooltip = (
+    <Tooltip
+      content={({ active, payload }) => {
+        if (!active || !payload?.length) return null
+        const p = payload[0].payload
+        return (
+          <ChartTooltipBox>
+            <div style={{ fontWeight: 700 }}>{p.name}</div>
+            <div>{p.tonnes.toFixed(1)} tCO₂e</div>
+          </ChartTooltipBox>
+        )
+      }}
+    />
+  )
+  const cells = data.map((d, i) => <Cell key={d.category || i} fill={CATEGORY_COLORS[d.category] || FALLBACK_COLOR} />)
+
+  if (variant === 'vertical-bar') {
+    return (
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 28 }}>
+            <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" vertical={false} />
+            <XAxis
+              dataKey="name"
+              interval={0}
+              angle={-28}
+              textAnchor="end"
+              height={50}
+              tick={{ fontSize: 10, fill: 'var(--text-muted)' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={40} />
+            {tooltip}
+            <Bar dataKey="tonnes" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              {cells}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -207,22 +268,9 @@ function MaterialRankingChart({ bills, height = 320 }) {
           <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" horizontal={false} />
           <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
           <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null
-              const p = payload[0].payload
-              return (
-                <ChartTooltipBox>
-                  <div style={{ fontWeight: 700 }}>{p.name}</div>
-                  <div>{p.tonnes.toFixed(1)} tCO₂e</div>
-                </ChartTooltipBox>
-              )
-            }}
-          />
+          {tooltip}
           <Bar dataKey="tonnes" radius={[0, 4, 4, 0]} isAnimationActive={false}>
-            {data.map((d, i) => (
-              <Cell key={d.category || i} fill={CATEGORY_COLORS[d.category] || FALLBACK_COLOR} />
-            ))}
+            {cells}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
@@ -244,7 +292,13 @@ function MaterialRankingChart({ bills, height = 320 }) {
 // Entries with applicable: false are excluded here (there's nothing to
 // compare for them), matching how they're already shown separately, muted,
 // in the Alternatives grid rather than silently as a zero-height bar pair.
-function SubstitutionImpactChart({ catalogPreview, height = 320 }) {
+// `variant`: 'horizontal-grouped-bar' (default) or 'vertical-grouped-bar'
+// -- orientation only. The content this chart exists to show -- current
+// spec vs. after-swap carbon, per catalog entry -- is identical either
+// way, per the explicit instruction to keep this showing "the baseline
+// and change in baseline after applying the material swaps" even while
+// the user gets a real type choice like every other card.
+function SubstitutionImpactChart({ catalogPreview, height = 320, variant = 'horizontal-grouped-bar' }) {
   const data = (catalogPreview || [])
     .filter((e) => e.applicable)
     .map((e) => ({
@@ -255,37 +309,64 @@ function SubstitutionImpactChart({ catalogPreview, height = 320 }) {
 
   if (data.length === 0) return <EmptyNote text="No applicable material swaps for this baseline yet -- see the Alternatives section below." />
 
+  const legend = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--chart-ord-light)' }} />
+        Current Spec
+      </span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent-lime)' }} />
+        Verified Alternative
+      </span>
+    </div>
+  )
+  const tooltip = (
+    <Tooltip
+      content={({ active, payload }) => {
+        if (!active || !payload?.length) return null
+        const p = payload[0].payload
+        return (
+          <ChartTooltipBox>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
+            <div style={{ color: 'var(--chart-ord-light)' }}>Current: {p.original.toFixed(1)} tCO₂e</div>
+            <div style={{ color: 'var(--accent-lime)' }}>Alternative: {p.alternative.toFixed(1)} tCO₂e</div>
+          </ChartTooltipBox>
+        )
+      }}
+    />
+  )
+
+  if (variant === 'vertical-grouped-bar') {
+    return (
+      <div>
+        {legend}
+        <div style={{ height }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 28 }} barGap={3}>
+              <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" vertical={false} />
+              <XAxis dataKey="name" interval={0} angle={-28} textAnchor="end" height={50} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+              <YAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={40} />
+              {tooltip}
+              <Bar dataKey="original" name="Current Spec" fill="var(--chart-ord-light)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+              <Bar dataKey="alternative" name="Verified Alternative" fill="var(--accent-lime)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 10, fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--chart-ord-light)' }} />
-          Current Spec
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--accent-lime)' }} />
-          Verified Alternative
-        </span>
-      </div>
+      {legend}
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 20, left: 8, bottom: 4 }} barGap={3}>
             <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" horizontal={false} />
             <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
             <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} axisLine={false} tickLine={false} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) return null
-                const p = payload[0].payload
-                return (
-                  <ChartTooltipBox>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>{p.name}</div>
-                    <div style={{ color: 'var(--chart-ord-light)' }}>Current: {p.original.toFixed(1)} tCO₂e</div>
-                    <div style={{ color: 'var(--accent-lime)' }}>Alternative: {p.alternative.toFixed(1)} tCO₂e</div>
-                  </ChartTooltipBox>
-                )
-              }}
-            />
+            {tooltip}
             <Bar dataKey="original" name="Current Spec" fill="var(--chart-ord-light)" radius={[0, 4, 4, 0]} isAnimationActive={false} />
             <Bar dataKey="alternative" name="Verified Alternative" fill="var(--accent-lime)" radius={[0, 4, 4, 0]} isAnimationActive={false} />
           </BarChart>
@@ -299,7 +380,7 @@ function SubstitutionImpactChart({ catalogPreview, height = 320 }) {
 // dual-axis chart, per dataviz's #1 anti-pattern) of carbon intensity
 // (kgCO2e/m²) over time, with % complete surfaced in the hover tooltip
 // rather than a second scale.
-function IntensityOverTimeChart({ dashboardPoints, baseline, height = 320 }) {
+function IntensityOverTimeChart({ dashboardPoints, baseline, height = 320, variant = 'line' }) {
   const data = useMemo(() => {
     if (!baseline?.floor_area_sqm) return []
     return dashboardPoints
@@ -315,6 +396,44 @@ function IntensityOverTimeChart({ dashboardPoints, baseline, height = 320 }) {
   if (!baseline?.floor_area_sqm) return <EmptyNote text="This project has no floor area recorded -- carbon intensity can't be computed." />
   if (data.length === 0) return <EmptyNote text="Add a cumulative bill to see carbon intensity over time." />
 
+  const tooltip = (
+    <Tooltip
+      content={({ active, payload }) => {
+        if (!active || !payload?.length) return null
+        const p = payload[0].payload
+        return (
+          <ChartTooltipBox>
+            <div style={{ fontWeight: 700 }}>{p.period}</div>
+            <div style={{ color: 'var(--accent-mint)', fontWeight: 600 }}>{p.intensity.toFixed(1)} kgCO₂e/m²</div>
+            {p.percentComplete != null && <div style={{ color: 'var(--text-tertiary)' }}>{p.percentComplete.toFixed(1)}% complete</div>}
+          </ChartTooltipBox>
+        )
+      }}
+    />
+  )
+
+  if (variant === 'area') {
+    return (
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 10, right: 16, left: 4, bottom: 0 }}>
+            <defs>
+              <linearGradient id="intensityAreaFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--accent-mint)" stopOpacity={0.35} />
+                <stop offset="100%" stopColor="var(--accent-mint)" stopOpacity={0.02} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" vertical={false} />
+            <XAxis dataKey="dateLabel" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={{ stroke: 'rgba(var(--c-overlay),0.1)' }} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={56} tickFormatter={(v) => v.toFixed(0)} />
+            {tooltip}
+            <Area type="monotone" dataKey="intensity" stroke="var(--accent-mint)" strokeWidth={2} fill="url(#intensityAreaFill)" dot={{ r: 3 }} activeDot={{ r: 6 }} isAnimationActive={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -322,19 +441,7 @@ function IntensityOverTimeChart({ dashboardPoints, baseline, height = 320 }) {
           <CartesianGrid stroke="rgba(var(--c-overlay),0.06)" vertical={false} />
           <XAxis dataKey="dateLabel" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={{ stroke: 'rgba(var(--c-overlay),0.1)' }} tickLine={false} />
           <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={56} tickFormatter={(v) => v.toFixed(0)} />
-          <Tooltip
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null
-              const p = payload[0].payload
-              return (
-                <ChartTooltipBox>
-                  <div style={{ fontWeight: 700 }}>{p.period}</div>
-                  <div style={{ color: 'var(--accent-mint)', fontWeight: 600 }}>{p.intensity.toFixed(1)} kgCO₂e/m²</div>
-                  {p.percentComplete != null && <div style={{ color: 'var(--text-tertiary)' }}>{p.percentComplete.toFixed(1)}% complete</div>}
-                </ChartTooltipBox>
-              )
-            }}
-          />
+          {tooltip}
           <Line type="monotone" dataKey="intensity" stroke="var(--accent-mint)" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 6 }} isAnimationActive={false} />
         </LineChart>
       </ResponsiveContainer>
@@ -380,7 +487,7 @@ export function EstimateBadge({ text = 'Estimated from the locked Conceptual Est
 // totals a second way. A caller passes either `bills` (real data,
 // preferred when non-empty) or `materialBreakdown` (the estimate
 // snapshot) -- never both meaningfully at once.
-export function EstimatedMaterialBreakdownDonut({ materialBreakdown, bills, totalCarbonKg, height = 220 }) {
+export function EstimatedMaterialBreakdownDonut({ materialBreakdown, bills, totalCarbonKg, height = 220, variant = 'donut' }) {
   const aggregated = useMemo(() => (bills && bills.length > 0 ? aggregateCategories(bills) : null), [bills])
   const data = aggregated
     ? aggregated.rows.map((r) => ({ category: r.category, gwp_kg_co2e: r.total }))
@@ -389,12 +496,17 @@ export function EstimatedMaterialBreakdownDonut({ materialBreakdown, bills, tota
 
   if (data.length === 0) return <EmptyNote text="No material breakdown available yet." />
 
+  // 'pie' (variant) drops the center hole entirely -- same slices, same
+  // colors, same legend/tooltip, just no innerRadius. 'donut' (default)
+  // keeps today's ring.
+  const innerRadius = variant === 'pie' ? 0 : 62
+
   return (
     <div>
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={data} cx="50%" cy="50%" innerRadius={62} outerRadius={94} paddingAngle={3} dataKey="gwp_kg_co2e">
+            <Pie data={data} cx="50%" cy="50%" innerRadius={innerRadius} outerRadius={94} paddingAngle={3} dataKey="gwp_kg_co2e">
               {data.map((entry, idx) => (
                 <Cell key={entry.category || idx} fill={CATEGORY_COLORS[entry.category] || FALLBACK_COLOR} />
               ))}
@@ -507,7 +619,8 @@ function EstimatedBaselineCard({ baseline }) {
 // renders the EXACT same component tree a real card would -- never a
 // second, simplified approximation of what "Add to Dashboard" will
 // actually produce.
-function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight = 420 } = {}) {
+function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight = 420, chartType } = {}) {
+  const variant = chartType || defaultChartTypeFor(dataset)
   if (dataset === 'carbon-over-time') {
     return chartData.bills.length === 0 && chartData.baseline?.is_estimated ? (
       <EstimatedBaselineCard baseline={chartData.baseline} />
@@ -529,7 +642,7 @@ function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight
     )
   }
   if (dataset === 'material-breakdown') {
-    if (chartData.bills.length > 0) return <EstimatedMaterialBreakdownDonut bills={chartData.bills} height={chartHeight - 100} />
+    if (chartData.bills.length > 0) return <EstimatedMaterialBreakdownDonut bills={chartData.bills} height={chartHeight - 100} variant={variant} />
     if (chartData.estimateBill) {
       return (
         <>
@@ -538,6 +651,7 @@ function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight
             materialBreakdown={chartData.estimateBill.category_breakdown}
             totalCarbonKg={chartData.baseline?.total_gwp_kg_co2e}
             height={chartHeight - 100}
+            variant={variant}
           />
         </>
       )
@@ -545,31 +659,40 @@ function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight
     return <EmptyNote text="Add a bill to see its material breakdown here." />
   }
   if (dataset === 'material-ranking') {
-    if (chartData.bills.length > 0) return <MaterialRankingChart bills={chartData.bills} height={chartHeight} />
+    if (chartData.bills.length > 0) return <MaterialRankingChart bills={chartData.bills} height={chartHeight} variant={variant} />
     if (chartData.estimateBill) {
       return (
         <>
           <EstimateBadge />
-          <MaterialRankingChart bills={[chartData.estimateBill]} height={chartHeight} />
+          <MaterialRankingChart bills={[chartData.estimateBill]} height={chartHeight} variant={variant} />
         </>
       )
     }
-    return <MaterialRankingChart bills={chartData.bills} height={chartHeight} />
+    return <MaterialRankingChart bills={chartData.bills} height={chartHeight} variant={variant} />
   }
-  if (dataset === 'substitution-impact') return <SubstitutionImpactChart catalogPreview={chartData.catalogPreview} height={chartHeight} />
+  if (dataset === 'substitution-impact') return <SubstitutionImpactChart catalogPreview={chartData.catalogPreview} height={chartHeight} variant={variant} />
   if (dataset === 'progress-vs-intensity') {
-    return <IntensityOverTimeChart dashboardPoints={chartData.dashboardPoints} baseline={chartData.baseline} height={chartHeight} />
+    return <IntensityOverTimeChart dashboardPoints={chartData.dashboardPoints} baseline={chartData.baseline} height={chartHeight} variant={variant} />
   }
   return null
 }
 
-function ChartCardBlock({ card, idx, total, onRemove, onMoveUp, onMoveDown, onToggleExpand, chartData }) {
+function ChartCardBlock({ card, idx, total, onRemove, onMoveUp, onMoveDown, onToggleExpand, onChangeType, chartData }) {
   const meta = CHART_DATASETS.find((d) => d.id === card.dataset)
   const title = card.title || meta?.label || card.dataset
   const subtitle = card.subtitle || meta?.subtitle
   const isExpanded = !!card.expanded
   const chartHeight = isExpanded ? 560 : 320
   const explorerHeight = isExpanded ? 560 : 420
+  const chartType = card.chartType || meta?.chartTypes?.[0]?.id
+  // Real, per-card chart-type switching -- "I should be able to choose
+  // the type of chart I want for any of the options" -- lives right here
+  // on each card, not just at add-time in the builder modal, so changing
+  // your mind about a chart already on the dashboard never means
+  // deleting and re-adding it. Hidden when a dataset has only one listed
+  // type (Trajectory -- see CHART_DATASETS' own comment on why that one
+  // already has a richer, per-series picker inside the chart itself).
+  const hasTypeChoice = (meta?.chartTypes?.length || 0) > 1
 
   return (
     <div className="glass-panel" style={{ padding: 20 }}>
@@ -578,7 +701,20 @@ function ChartCardBlock({ card, idx, total, onRemove, onMoveUp, onMoveDown, onTo
           <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{title}</h4>
           {subtitle && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{subtitle}</p>}
         </div>
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+          {hasTypeChoice && (
+            <select
+              value={chartType}
+              onChange={(e) => onChangeType(e.target.value)}
+              title="Chart type"
+              className="form-select"
+              style={{ fontSize: '0.72rem', padding: '4px 20px 4px 8px', height: 'auto', minWidth: 0, width: 'auto' }}
+            >
+              {meta.chartTypes.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          )}
           <button type="button" onClick={onMoveUp} disabled={idx === 0} title="Move up" className="btn-secondary" style={{ padding: '5px 8px' }}>
             <ChevronUp size={13} />
           </button>
@@ -594,32 +730,34 @@ function ChartCardBlock({ card, idx, total, onRemove, onMoveUp, onMoveDown, onTo
         </div>
       </div>
 
-      {renderChartBody(card.dataset, chartData, { chartHeight, explorerHeight })}
+      {renderChartBody(card.dataset, chartData, { chartHeight, explorerHeight, chartType })}
     </div>
   )
 }
 
 // The Interactive Chart Builder (Phase E) -- opened by "Add Custom Chart".
 // Guided Presets: the mockup's 4 named presets, one click each. Custom
-// Dataset & Configurator: title/subtitle, a dataset dropdown, a
-// compatible-chart-type picker, and a live preview built from
-// renderChartBody -- the SAME render path a real card uses, so the
-// preview never lies about what gets added.
-//
-// The chart-type picker is deliberately a single, disabled option rather
-// than a real multi-type switch: this codebase renders exactly one fixed
-// chart form per dataset today (see CHART_DATASETS' own `chartType`
-// field) -- there's no donut-vs-bar toggle wired up underneath for any of
-// them yet. Showing it as "only enabling types the chosen dataset can
-// actually render" (one, here) is the honest version of that contract
-// rather than presenting a choice this build can't actually honor.
+// Dataset & Configurator: title/subtitle, a dataset dropdown, a REAL
+// compatible-chart-type picker (only enabling the types that dataset's
+// own CHART_DATASETS.chartTypes actually lists -- e.g. the donut dataset
+// never offers "Line"), and a live preview built from renderChartBody --
+// the SAME render path a real card uses, so the preview never lies about
+// what gets added. The picker is only disabled when a dataset genuinely
+// has one form (Trajectory -- it has its own richer per-series picker
+// built into the chart itself instead, see CHART_DATASETS' comment).
 function ChartBuilderModal({ isOpen, onClose, tab, onTabChange, onAddPreset, onAddCustom, chartData }) {
   const [customDataset, setCustomDataset] = useState('carbon-over-time')
+  const [customChartType, setCustomChartType] = useState(defaultChartTypeFor('carbon-over-time'))
   const [customTitle, setCustomTitle] = useState('')
   const [customSubtitle, setCustomSubtitle] = useState('')
 
   if (!isOpen) return null
   const customMeta = CHART_DATASETS.find((d) => d.id === customDataset)
+
+  const handleDatasetChange = (newDataset) => {
+    setCustomDataset(newDataset)
+    setCustomChartType(defaultChartTypeFor(newDataset))
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(var(--c-black), 0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -711,7 +849,7 @@ function ChartBuilderModal({ isOpen, onClose, tab, onTabChange, onAddPreset, onA
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div className="form-group">
                 <label className="form-label">Primary Dataset</label>
-                <select value={customDataset} onChange={(e) => setCustomDataset(e.target.value)} className="form-select">
+                <select value={customDataset} onChange={(e) => handleDatasetChange(e.target.value)} className="form-select">
                   {CHART_DATASETS.map((d) => (
                     <option key={d.id} value={d.id}>{d.label}</option>
                   ))}
@@ -719,10 +857,22 @@ function ChartBuilderModal({ isOpen, onClose, tab, onTabChange, onAddPreset, onA
               </div>
               <div className="form-group">
                 <label className="form-label">Chart Type</label>
-                <select value={customMeta?.chartType || ''} disabled className="form-select" style={{ opacity: 0.7 }}>
-                  <option value={customMeta?.chartType || ''}>{customMeta?.chartType}</option>
+                <select
+                  value={customChartType}
+                  onChange={(e) => setCustomChartType(e.target.value)}
+                  disabled={(customMeta?.chartTypes?.length || 0) <= 1}
+                  className="form-select"
+                  style={(customMeta?.chartTypes?.length || 0) <= 1 ? { opacity: 0.7 } : undefined}
+                >
+                  {(customMeta?.chartTypes || []).map((t) => (
+                    <option key={t.id} value={t.id}>{t.label}</option>
+                  ))}
                 </select>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>Only the type this dataset supports is offered.</span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                  {(customMeta?.chartTypes?.length || 0) > 1
+                    ? 'Pick any of this dataset\'s supported chart forms -- the preview below updates to match.'
+                    : 'This dataset\'s chart type is chosen per-series directly inside the chart itself once added.'}
+                </span>
               </div>
             </div>
 
@@ -733,14 +883,14 @@ function ChartBuilderModal({ isOpen, onClose, tab, onTabChange, onAddPreset, onA
                 {(customSubtitle || customMeta?.subtitle) && (
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 10 }}>{customSubtitle || customMeta?.subtitle}</p>
                 )}
-                {renderChartBody(customDataset, chartData, { chartHeight: 240, explorerHeight: 280 })}
+                {renderChartBody(customDataset, chartData, { chartHeight: 240, explorerHeight: 280, chartType: customChartType })}
               </div>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
-                onClick={() => onAddCustom(customDataset, { title: customTitle, subtitle: customSubtitle })}
+                onClick={() => onAddCustom(customDataset, { title: customTitle, subtitle: customSubtitle, chartType: customChartType })}
                 className="btn-primary"
                 style={{ fontSize: '0.8125rem', padding: '8px 16px' }}
               >
@@ -1275,10 +1425,16 @@ export default function ProjectDashboard() {
     setChartCards(defaultChartCards())
   }
 
-  const addChartCard = (dataset, { title, subtitle } = {}) => {
+  const addChartCard = (dataset, { title, subtitle, chartType } = {}) => {
     setChartCards((prev) => [
       ...prev,
-      { id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, dataset, title: title || undefined, subtitle: subtitle || undefined },
+      {
+        id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        dataset,
+        title: title || undefined,
+        subtitle: subtitle || undefined,
+        chartType: chartType || defaultChartTypeFor(dataset),
+      },
     ])
     setShowChartBuilderModal(false)
     scrollToSection('trends')
@@ -1286,6 +1442,10 @@ export default function ProjectDashboard() {
 
   const removeChartCard = (id) => setChartCards((prev) => (prev.length > 1 ? prev.filter((c) => c.id !== id) : prev))
   const toggleChartCardExpand = (id) => setChartCards((prev) => prev.map((c) => (c.id === id ? { ...c, expanded: !c.expanded } : c)))
+  // Real per-card chart-type switching -- picking a new type on an
+  // existing card never loses its position, title override, or expanded
+  // state, same immutable-update shape as toggleChartCardExpand above.
+  const changeChartCardType = (id, chartType) => setChartCards((prev) => prev.map((c) => (c.id === id ? { ...c, chartType } : c)))
   const moveChartCard = (id, dir) =>
     setChartCards((prev) => {
       const idx = prev.findIndex((c) => c.id === id)
@@ -1607,6 +1767,7 @@ export default function ProjectDashboard() {
                   onMoveUp={() => moveChartCard(card.id, -1)}
                   onMoveDown={() => moveChartCard(card.id, 1)}
                   onToggleExpand={() => toggleChartCardExpand(card.id)}
+                  onChangeType={(type) => changeChartCardType(card.id, type)}
                   chartData={chartData}
                 />
               ))}

@@ -231,7 +231,7 @@ export default function CarbonTrackingPage() {
           <div style={{ background: 'rgba(var(--c-surf-5), 0.75)', border: '1px solid rgba(var(--c-blue), 0.16)', borderRadius: 'var(--radius-md)', padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8125rem', flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               {originLabel(activeProject?.baseline_source_type) && (
-                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-mint)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   {originLabel(activeProject?.baseline_source_type)}
                 </span>
               )}
@@ -272,7 +272,7 @@ export default function CarbonTrackingPage() {
                   ? `${dashboard.projected_vs_baseline_pct > 0 ? '+' : ''}${dashboard.projected_vs_baseline_pct.toFixed(1)}% vs Baseline`
                   : 'At baseline estimate'
               }
-              accent={isExceedingBaseline ? 'rose' : 'lime'}
+              accent={isExceedingBaseline ? 'amber' : 'lime'}
               badge={isExceedingBaseline ? 'Exceeding' : 'On Track'}
               badgeType={isExceedingBaseline ? 'amber' : 'lime'}
             />
@@ -281,9 +281,9 @@ export default function CarbonTrackingPage() {
               value={carbonIntensity != null ? carbonIntensity.toFixed(1) : '-'}
               unit="kgCO₂e/m²"
               subtitle={dashboard.benchmark_available ? `Typical is ${dashboard.typical_carbon_per_sqm?.toFixed(1)} kg/m² (${dashboard.benchmark_floor_band_used})` : 'No benchmark available for this project'}
-              accent="cyan"
+              accent="violet"
               badge="Intensity"
-              badgeType="cyan"
+              badgeType="violet"
             />
             <StatCard
               title="Physical Progress"
@@ -301,7 +301,7 @@ export default function CarbonTrackingPage() {
                   ? `${dashboard.projected_carbon_per_sqm?.toFixed(1) || '-'} kg/m² vs typical ${dashboard.typical_carbon_per_sqm?.toFixed(1) || '-'} kg/m²`
                   : 'No benchmark available for this project'
               }
-              accent={isExceedingBaseline ? 'rose' : 'lime'}
+              accent={isExceedingBaseline ? 'amber' : 'lime'}
               badge={isExceedingBaseline ? 'Over' : 'Within'}
               badgeType={isExceedingBaseline ? 'amber' : 'lime'}
               icon={Activity}

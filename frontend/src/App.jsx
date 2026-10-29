@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { ProjectProvider, useProject } from './context/ProjectContext'
 import AppShell from './components/layout/AppShell'
 import PlaceholderView from './components/common/PlaceholderView'
+import LandingPage from './components/landing/LandingPage'
 import ProjectDashboard from './components/project/ProjectDashboard'
 import ProjectDirectory from './components/project/ProjectDirectory'
 import PortfolioOverview from './components/portfolio/PortfolioOverview'
@@ -66,12 +67,26 @@ const VIEWS = {
 }
 
 function AppContent() {
-  const [currentView, setCurrentView] = useState('overview')
+  // 'landing' is a real view id here, same as every other entry in
+  // VIEW_COMPONENTS/VIEWS below, EXCEPT it's deliberately not registered
+  // in either map and is checked for before AppShell is rendered at all --
+  // LandingPage is a full-screen hero with no sidebar/top-bar chrome of
+  // its own, so it can't live inside <AppShell> like every other view
+  // does. It's a true front door: shown once, on first load, before
+  // anything else -- navigating anywhere FROM it (both its own buttons
+  // call onNavigate) leaves this state for good, there's no path back to
+  // 'landing' once you're in the app (same as a marketing site's home
+  // page vs. the product behind its "Sign in").
+  const [currentView, setCurrentView] = useState('landing')
   const { registerNavigate } = useProject()
 
   useEffect(() => {
     registerNavigate(setCurrentView)
   }, [registerNavigate])
+
+  if (currentView === 'landing') {
+    return <LandingPage onNavigate={setCurrentView} />
+  }
 
   const view = VIEWS[currentView] || VIEWS.overview
   const ViewComponent = VIEW_COMPONENTS[currentView]
