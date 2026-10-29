@@ -80,7 +80,19 @@ _SUBTOTAL_RE = re.compile(
 )
 
 _HEADER_KEYWORDS = {
-    "item_no": ["item no", "item code", "sl no", "sl.no", "sr no", "s.no", "s. no"],
+    # "si no" / "si.no" added after a real bug: a real BOQ (Purva
+    # Atthibele, uploaded by the user) headers its item-number column
+    # "SI NO" (not "SL NO"), which matched none of the patterns below --
+    # find_header_band() never found an anchor, fell back to its fixed
+    # `anchor = 2` guess, landed on an unrelated revision-date row two
+    # rows above the real header, and detect_columns() found zero usable
+    # columns from it. Net effect: extract_billable_items() silently
+    # returned 0 items for a 43-line real BOQ (confirmed: with "si no"
+    # recognized, the real header row -- row index 3 -- is found and all
+    # 43 lines extract correctly). See also the bare-"Total" override
+    # just below detect_columns's keyword matching, a second bug this
+    # same file surfaced.
+    "item_no": ["item no", "item code", "sl no", "sl.no", "sr no", "s.no", "s. no", "si no", "si.no"],
     "description": ["description of work", "description of items", "description"],
     "uom": ["uom", "unit of measure", "unit"],
     "qty": ["quantity", "qty"],
@@ -273,6 +285,35 @@ def detect_columns(rows: list[tuple], anchor_idx: int, band_end_idx: int) -> dic
             continue
         total_hits = [h for h in hits if "total" in h[1].lower()]
         chosen[purpose] = (total_hits[-1] if total_hits else hits[-1])[0]
+
+    # Revision/phase-split BOQs can carry a running grand-total-quantity
+    # column with NO "qty"/"quantity" word in its own header text at all
+    # -- e.g. ... | QTY R0 Shared | Marketing(R1) | Mock-up(R1) |
+    # Marketing(R2) | Mock-up(R2) | Total | RATE | AMOUNT | ... -- so it
+    # never enters purpose_hits["qty"] above, and whatever column DOES
+    # say "qty" (here, "QTY R0 Shared", a partial base/reference figure,
+    # not the row's real billable quantity) wins the normal keyword match
+    # by default instead. Confirmed as a real bug against a real BOQ
+    # (Purva Atthibele): Amount == Rate * [the bare "Total" column] held
+    # EXACTLY for all 43 of its billable rows, while Amount == Rate *
+    # ["QTY R0 Shared"] was off by up to ~4x on the same rows -- i.e. the
+    # keyword match was picking a column the sheet's own arithmetic says
+    # is NOT what Rate multiplies. The universal BOQ identity
+    # (Amount = Rate x Quantity) means a bare "Total" column sitting
+    # immediately to the LEFT of a detected Rate column is an extremely
+    # reliable positional signal for "this is the real quantity column" --
+    # far more reliable here than the keyword match -- so it overrides
+    # the keyword-matched qty column. Deliberately narrow (exact text
+    # "total", immediately before Rate) so this can't misfire on an
+    # unrelated column that merely mentions "total" elsewhere in a
+    # differently laid-out BOQ.
+    if "rate" in chosen:
+        candidate_idx = chosen["rate"] - 1
+        if candidate_idx >= 0:
+            candidate_text = " ".join(col_text.get(candidate_idx, [])).strip().lower()
+            if candidate_text == "total":
+                chosen["qty"] = candidate_idx
+
     return chosen
 
 
