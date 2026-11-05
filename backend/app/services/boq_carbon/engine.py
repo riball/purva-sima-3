@@ -53,6 +53,7 @@ from app.services.boq_carbon.classifier import (
     CATEGORY_BLOCKWORK_DENSE,
     CATEGORY_BRICK,
     CATEGORY_GLASS,
+    CATEGORY_MASONRY,
     CATEGORY_NATURAL_STONE,
     CATEGORY_PAINT,
     CATEGORY_PCC,
@@ -65,6 +66,39 @@ from app.services.boq_carbon.classifier import (
     CATEGORY_TIMBER,
     CATEGORY_UPVC,
     classify_material,
+)
+
+# The complete, canonical set of material categories THIS ENGINE can
+# compute a GWP for -- one tuple listing exactly the same 17 categories
+# compute_line_gwp()'s own `if category in (...)` / `if category ==`
+# branches below handle, in the same order they appear there. Added for
+# the "search any material with a stored emission factor, not just this
+# BOQ's top 5" feature (see calculate_from_boq's all_materials field) --
+# that feature needs to know the full universe of computable categories,
+# including ones that happen not to appear in a given BOQ at all, which
+# by_category alone can't answer (it only ever lists categories that had
+# at least one computed line). Kept as one tuple, in this one module,
+# right next to the branches it mirrors, specifically so the two can
+# never silently drift apart -- adding a new category to compute_line_gwp
+# means adding it here too, in the same file, a few lines away.
+ALL_MATERIAL_CATEGORIES: tuple[str, ...] = (
+    CATEGORY_RCC,
+    CATEGORY_PCC,
+    CATEGORY_STEEL_REBAR,
+    CATEGORY_STEEL_SECTION,
+    CATEGORY_BRICK,
+    CATEGORY_BLOCKWORK_AAC,
+    CATEGORY_BLOCKWORK_DENSE,
+    CATEGORY_MASONRY,
+    CATEGORY_PLASTER_CEMENT,
+    CATEGORY_PLASTER_GYPSUM,
+    CATEGORY_TILE_CERAMIC,
+    CATEGORY_NATURAL_STONE,
+    CATEGORY_PAINT,
+    CATEGORY_ALUMINIUM,
+    CATEGORY_UPVC,
+    CATEGORY_GLASS,
+    CATEGORY_TIMBER,
 )
 from app.services.boq_carbon.parser import extract_billable_items
 from app.services.emission_factors import get_factor
@@ -136,6 +170,16 @@ class LineItemResult(BaseModel):
     grade: Optional[str] = None
     gwp_kg_co2e: Optional[float]
     basis_note: str  # e.g. "12.3 m3 x 227.1 kgCO2e/m3 (PPC, M25)", or the reason it wasn't computed
+    # UX refinement (Phase C, Part A): which of coverage.py's fixed six-
+    # reason taxonomy buckets this line fell into, when it wasn't
+    # computed -- set from _classify_boq_exclusion_reason(), the SAME
+    # function calculate_from_boq()'s own coverage_rows builder already
+    # called (computed once now, read twice, not computed twice). None
+    # for a line that WAS computed. Lets the frontend's "What Wasn't
+    # Computed, and Why" panel filter line_items by reason directly,
+    # instead of only ever seeing coverage.excluded_by_reason's aggregate
+    # count with no way to see which lines it's counting.
+    exclusion_reason: Optional[str] = None
     # Workstream 07: the BOQ's own Rate/Amount columns for this row, when
     # the sheet has them (parser.py's extract_billable_items already
     # parses both -- this just surfaces them on the result). Purely
@@ -187,6 +231,18 @@ class BoqCarbonResult(BaseModel):
     total_gwp_kg_co2e: float
     total_gwp_tonnes_co2e: float
     by_category: list[CategoryTotal]
+    # Every category in ALL_MATERIAL_CATEGORIES (the full set this engine
+    # knows how to compute), not just the ones that actually appeared in
+    # this BOQ -- a category with no lines here, or no computable lines,
+    # gets a real zero-valued entry (gwp_kg_co2e=0.0, line_item_count=0)
+    # rather than being left out, so a search over "every material with a
+    # stored emission factor" can answer "0 -- not present in this BOQ"
+    # for a material instead of silently having nothing to say about it.
+    # by_category stays exactly as it was (only categories with >=1
+    # computed line) -- it still drives the Top-5-this-BOQ card and the
+    # full breakdown chart unchanged; this field is purely additive, for
+    # the new searchable-materials list only.
+    all_materials: list[CategoryTotal] = []
     floor_area_sqm: Optional[float] = None
     floor_area_basis: Optional[FloorAreaBasis] = None
     floor_area_basis_note: Optional[str] = None
@@ -297,6 +353,24 @@ def compute_line_gwp(
             gwp = qty * assumed_thickness_m * density * per_kg
             return gwp, f"{qty:g} m2 x {assumed_thickness_m}m assumed x {density} kg/m3 x {per_kg} kgCO2e/kg ({tier})"
         return None, f"{category} line with unhandled unit '{uom}'"
+
+    if category == CATEGORY_MASONRY:
+        # Directly areal (kgCO2e/m2), unlike brickwork/blockwork_aac/
+        # blockwork_dense just above -- this entry has no per-kg figure
+        # and no density to derive one from (a manual, unverified value --
+        # see emission_factors.json's masonry entry), so a Cum/Kg-priced
+        # masonry line is honestly excluded rather than inventing a
+        # density/thickness assumption to force it through the same path
+        # those categories use. Only ever reached for a line that said
+        # "masonry" with no more specific brick/block keyword in the
+        # first place (classify_material's masonry fallback is last-
+        # priority), so this is expected to be rare.
+        entry = get_factor(CATEGORY_MASONRY)
+        per_sqm = entry["ef_kgco2e_per_sqm"]
+        tier = entry["evidence_tier"]
+        if _AREA_UNITS.match(uom):
+            return qty * per_sqm, f"{qty:g} m2 x {per_sqm} kgCO2e/m2 ({tier}, directly areal, not independently verified)"
+        return None, f"masonry line with unhandled unit '{uom}' -- only a directly-areal (m2) factor is recorded for masonry, no per-kg/per-m3 basis"
 
     if category in (CATEGORY_PLASTER_CEMENT, CATEGORY_PLASTER_GYPSUM):
         # Workstream 07: category is now the exact canonical key (cement
@@ -533,6 +607,29 @@ def calculate_from_boq(
         for cat, v in sorted(category_totals.items(), key=lambda kv: -kv[1]["gwp"])
     ]
 
+    # all_materials: the same CategoryTotal objects already built above
+    # for every category that DID compute (reused as-is, not
+    # recalculated a second way), plus an explicit zero-valued stand-in
+    # for every canonical category that had no computed line in this
+    # BOQ at all -- see the field's own docstring on BoqCarbonResult.
+    _by_category_lookup = {c.category: c for c in by_category}
+    all_materials = sorted(
+        (
+            _by_category_lookup.get(cat)
+            or CategoryTotal(category=cat, gwp_kg_co2e=0.0, line_item_count=0, pct_of_total=0.0)
+            for cat in ALL_MATERIAL_CATEGORIES
+        ),
+        key=lambda c: (-c.gwp_kg_co2e, c.category),
+    )
+
+    # UX refinement (Phase C, Part A): classify every excluded line's
+    # reason ONCE, store it on the line itself, then have coverage_rows
+    # below just read it back -- same taxonomy, same function, now also
+    # surfaced on line_items for the frontend drill-down.
+    for r in line_results:
+        if r.gwp_kg_co2e is None:
+            r.exclusion_reason = _classify_boq_exclusion_reason(r)
+
     n_classified = sum(1 for r in line_results if r.category is not None)
     n_computed = sum(1 for r in line_results if r.gwp_kg_co2e is not None)
 
@@ -554,7 +651,7 @@ def calculate_from_boq(
             "value": _row_value(r),
             "computed": r.gwp_kg_co2e is not None,
             "is_top5": r.category in _TOP5_CATEGORIES_BOQ,
-            "reason": None if r.gwp_kg_co2e is not None else _classify_boq_exclusion_reason(r),
+            "reason": r.exclusion_reason,
         }
         for r in line_results
     ]
@@ -568,6 +665,7 @@ def calculate_from_boq(
         total_gwp_kg_co2e=total_gwp,
         total_gwp_tonnes_co2e=total_gwp / 1000.0,
         by_category=by_category,
+        all_materials=all_materials,
         line_items=line_results,
         coverage=coverage_service.build_coverage(coverage_rows),
     )

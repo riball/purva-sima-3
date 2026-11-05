@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { AlertTriangle, Activity, ShieldCheck, Lock } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import { originLabel } from '../../utils/projectOrigin'
@@ -74,7 +75,8 @@ function MilestoneLedger({ auditLog, boqOnlyRestriction, sourceType }) {
 }
 
 export default function CarbonTrackingPage() {
-  const { activeCompanyId, activeProjectId, activeProject, navigate } = useProject()
+  const { activeCompanyId, activeProjectId, activeProject } = useProject()
+  const navigate = useNavigate()
 
   const [dashboard, setDashboard] = useState(null)
   const [bills, setBills] = useState([])
@@ -221,7 +223,7 @@ export default function CarbonTrackingPage() {
           <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', maxWidth: 440 }}>
             This project has nothing to track yet -- record a baseline from the Project Dashboard or the Analyze a BOQ/Work Order page first.
           </p>
-          <button onClick={() => navigate('project-dashboard')} className="btn-primary" style={{ marginTop: 6 }}>
+          <button onClick={() => navigate(`/projects/${activeProjectId}`)} className="btn-primary" style={{ marginTop: 6 }}>
             Go to Project Dashboard
           </button>
         </div>

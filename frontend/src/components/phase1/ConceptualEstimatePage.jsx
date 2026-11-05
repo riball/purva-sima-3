@@ -3,6 +3,7 @@ import {
   Plus, Tag, FileSpreadsheet, Upload, RefreshCw, BookmarkPlus, LayoutDashboard, Sparkles,
 } from 'lucide-react'
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 import { Phase1FormProvider, usePhase1Form, MAX_GFA_SQM, SQM_TO_SQFT } from './Phase1FormContext'
 import { useProject } from '../../context/ProjectContext'
 import SaveProjectNameModal from '../shared/SaveProjectNameModal'
@@ -463,11 +464,12 @@ function ResultsPanel() {
     handleLockBaseline, isLockingBaseline, projectSummary,
     showSaveNameModal, setShowSaveNameModal,
   } = usePhase1Form()
-  const { selectProject, navigate } = useProject()
+  const { selectProject } = useProject()
+  const navigate = useNavigate()
 
   const viewDashboard = () => {
     selectProject(savedProject.project_id)
-    navigate('project-dashboard')
+    navigate(`/projects/${savedProject.project_id}`)
   }
 
   if (!savedProject) {

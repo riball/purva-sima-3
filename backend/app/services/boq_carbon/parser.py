@@ -385,6 +385,23 @@ def extract_billable_items(path: str, sheet_name: str) -> list[BoqLineItem]:
             )
             if kind == "roman" and is_billable_probe:
                 pass  # sub-item, not a new section -- fall through
+            elif kind == "roman":
+                # Non-billable roman-numbered row (no UOM) -- e.g. a
+                # narrative note like "ii. Supply and filling in
+                # foundations..." that introduces/explains the item(s)
+                # below it, not a new top-level section. Falling through to
+                # the `else` full-reset branch below (the old behaviour)
+                # stuck that note's own paragraph into
+                # context_stack["section"] and leaked it into every
+                # subsequent billable row's enriched_description until the
+                # next bare-letter section marker -- confirmed on a real
+                # file (Purva Atthibele combined BOQ): a single "ii" filling
+                # note at row 9 polluted 34+ unrelated RCC/Reinforcement/
+                # Structural Steel/Roofing/Waterproofing line items below
+                # it. Skip without touching context, same as a None-item_no
+                # note row already does (see the blank-desc skip above this
+                # loop).
+                continue
             elif kind == "section" and context_stack["subsection"] is not None:
                 # Bare-uppercase-letter row ("A", "B"...) encountered WHILE
                 # a numbered subsection is already active. Confirmed via
@@ -415,10 +432,27 @@ def extract_billable_items(path: str, sheet_name: str) -> list[BoqLineItem]:
                 context_stack = {"section": str(desc).strip(), "category": None, "subsection": None, "local_group": None}
                 continue
         elif kind == "category":
-            context_stack["category"] = str(desc).strip()
-            context_stack["subsection"] = None
-            context_stack["local_group"] = None
-            continue
+            is_billable_probe = (uom is not None and str(uom).strip() != "") and (
+                _nonzero(rate) or _nonzero(amount) or _nonzero(qty)
+            )
+            if is_billable_probe:
+                # Billable leaf item numbered with a bare integer local to
+                # its own lettered section (e.g. Architecture's "A Block
+                # Work" -> items 1, 2, 3...), not a new top-level category.
+                # Mirrors the roman-row disambiguation above. Confirmed on a
+                # real file (Purva Atthibele combined BOQ): treating every
+                # bare integer as a category header unconditionally silently
+                # discarded the ENTIRE Architecture section (Block Work /
+                # Plastering / Painting / Misc, 10 real priced lines)
+                # because it reuses plain integers 1-4 as item numbers
+                # within each lettered subsection. Falls through to the
+                # normal billable-item extraction below.
+                pass
+            else:
+                context_stack["category"] = str(desc).strip()
+                context_stack["subsection"] = None
+                context_stack["local_group"] = None
+                continue
         elif kind == "subsection":
             context_stack["subsection"] = str(desc).strip()
             context_stack["local_group"] = None

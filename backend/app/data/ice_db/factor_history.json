@@ -658,6 +658,26 @@
           "superseded_by": null
         }
       }
+    ],
+    "masonry": [
+      {
+        "valid_from": "2026-11-03",
+        "valid_to": null,
+        "changelog_note": "New category: masonry, added at the user's request as a directly-areal (kgCO2e/m2) factor -- 0.246, manual/unverified value, distinct basis from brickwork/blockwork_aac/blockwork_dense (which are all per-kg + density/thickness derived). No ICE/IFC/CEA source matched this figure after checking (see ef_source).",
+        "value": {
+          "ef_kgco2e_per_sqm": 0.246,
+          "ef_source": "User-provided value -- not independently verified against ICE (Inventory of Carbon and Energy), the IFC India Construction Materials Database (2017), or CEA. Checked all three: ICE and IFC both split masonry into brick vs. block vs. mortar as separate line items rather than a blended masonry category (no match found near 0.246 in either, per/kg or per/m2); CEA publishes only grid electricity emission factors, never material-level factors. Recorded as a manual override pending a real source citation -- see masonry entry note.",
+          "evidence_tier": "user_provided_unverified",
+          "cea_adjusted": false,
+          "basis": "areal_direct",
+          "conversion": {
+            "basis": "areal_direct",
+            "units": [
+              "SQM"
+            ]
+          }
+        }
+      }
     ]
   }
 }

@@ -467,6 +467,26 @@ export const api = {
     return handleResponse(res)
   },
 
+  // --- Material Swap Sandbox ---
+  // Free-text swap request -> real recompute (app/services/boq_carbon/
+  // swap_sandbox.py). Returns { evaluation: { intent, needs_clarification,
+  // interpretation_summary, entry, disclosures, computed, advisory },
+  // recommendation }. `recommendation` is null when
+  // evaluation.needs_clarification is set -- nothing was persisted for a
+  // request this app couldn't resolve into a real swap. A real
+  // `recommendation` is the SAME shape as any Phase 4 Recommendation
+  // (source: "custom_swap"), so it confirms-as-beta/rejects through the
+  // existing confirmRecommendationAsBeta/rejectRecommendation calls above,
+  // unchanged.
+  evaluateCustomSwap: async (projectId, question, companyId = 'provident') => {
+    const res = await fetch(`${API_BASE}/swap-sandbox/projects/${encodeURIComponent(projectId)}/evaluate?company_id=${encodeURIComponent(companyId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question }),
+    })
+    return handleResponse(res)
+  },
+
   // --- Factors & History ---
   getCurrentFactors: async (asOf = null) => {
     let url = `${API_BASE}/factors/current`

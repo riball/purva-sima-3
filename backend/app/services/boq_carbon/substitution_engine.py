@@ -43,7 +43,16 @@ from typing import Optional, Union
 
 from pydantic import BaseModel
 
-from app.services.boq_carbon.engine import BoqCarbonResult, LineItemResult, compute_line_gwp, _MASS_KG_UNITS, _MASS_MT_UNITS
+from app.services.boq_carbon.classifier import CATEGORY_PCC, CATEGORY_RCC
+from app.services.boq_carbon.engine import (
+    BoqCarbonResult,
+    LineItemResult,
+    compute_line_gwp,
+    _MASS_KG_UNITS,
+    _MASS_MT_UNITS,
+    _VOL_UNITS,
+)
+from app.services.ice_factors import get_concrete_factor_per_m3_blend
 from app.services.supplier_catalog import get_entry as get_substitution
 from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, WoLineItemResult
 
@@ -163,8 +172,43 @@ def _recompute_line_at_substitute(entry: dict, li: AnyLineItem) -> Optional[floa
         if _MASS_MT_UNITS.match(unit):
             return li.qty * 1000.0 * per_kg
         return None
-    if "substitute_cement_type" in entry:
-        gwp, _note = compute_line_gwp(_line_category(li), entry["substitute_cement_type"], _line_grade(li), _line_unit(li), li.qty)
+    if "substitute_blend_pct" in entry:
+        # Continuous GGBS%/fly-ash% composition lever (the Swap Sandbox's
+        # custom-percentage feature -- see ice_factors.py's
+        # get_blended_cement_factor_per_kg docstring for why this is an
+        # interpolated/extrapolated estimate, not a third sourced number,
+        # and swap_sandbox.py's resolve_intent_to_entry for where that
+        # gets disclosed). Only meaningful for RCC/PCC concrete priced by
+        # volume -- same honest-exclusion discipline compute_line_gwp
+        # itself uses for every other category/unit mismatch: return
+        # None (not a guess) rather than forcing a line this lever can't
+        # actually apply to.
+        spec = entry["substitute_blend_pct"]
+        category = _line_category(li)
+        unit = _line_unit(li)
+        if category not in (CATEGORY_RCC, CATEGORY_PCC) or unit is None or not _VOL_UNITS.match(unit):
+            return None
+        new_grade = entry.get("substitute_grade", _line_grade(li))
+        per_m3, _blend_info = get_concrete_factor_per_m3_blend(
+            spec["component"], spec["pct"], grade=new_grade, apply_cea=True
+        )
+        return li.qty * per_m3
+    if "substitute_cement_type" in entry or "substitute_grade" in entry:
+        # Either or both may be set -- a combined grade+cement_type swap
+        # ("M25 with a GGBS/PSC blend", the swap sandbox's own motivating
+        # example) is ONE recompute call, not two: compute_line_gwp (via
+        # ice_factors.get_concrete_factor_per_m3) already accepts
+        # cement_type and grade together, scaling IFC's India-specific
+        # cement-type anchor by ICE's own grade-ratio curve -- see that
+        # module's docstring. Whichever of the two isn't being changed
+        # keeps the line's own original value (not a default), so a
+        # cement-type-only catalog entry (e.g. opc_to_psc) behaves
+        # identically to before this branch existed -- new_grade falls
+        # back to _line_grade(li), exactly what the old, narrower branch
+        # always passed.
+        new_cement_type = entry.get("substitute_cement_type", _line_cement_type(li))
+        new_grade = entry.get("substitute_grade", _line_grade(li))
+        gwp, _note = compute_line_gwp(_line_category(li), new_cement_type, new_grade, _line_unit(li), li.qty)
         return gwp
     if "substitute_category" in entry:
         gwp, _note = compute_line_gwp(entry["substitute_category"], None, None, _line_unit(li), li.qty)

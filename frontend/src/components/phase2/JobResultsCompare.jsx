@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { FileSpreadsheet, FileText, Loader2, CheckCircle2, XCircle, LayoutDashboard, Layers, Trash2, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import SaveProjectNameModal from '../shared/SaveProjectNameModal'
@@ -57,7 +58,8 @@ const STATUS_META = {
  * (its own refreshJobs) rather than trying to mutate the jobs prop itself.
  */
 export default function JobResultsCompare({ jobs, jobNameMap = {}, onJobDeleted }) {
-  const { activeCompanyId, addToast, loadProjects, selectProject, navigate, openJobDashboard, createNamedProject } = useProject()
+  const { activeCompanyId, addToast, loadProjects, selectProject, openJobDashboard, createNamedProject } = useProject()
+  const navigate = useNavigate()
   // UX refinement: "after the upload i want to view the details of the
   // calculation in a dashboard format" -- detailsByJob caches each job's
   // full result (GET /uploads/jobs/{id}/result) once fetched, so
@@ -88,7 +90,7 @@ export default function JobResultsCompare({ jobs, jobNameMap = {}, onJobDeleted 
       setLoadingJobId(null)
     }
     openJobDashboard(job, result)
-    navigate('job-dashboard')
+    navigate(`/uploads/${job.job_id}`)
   }
 
   const applyAsBaseline = async (job, projectId) => {
@@ -112,7 +114,7 @@ export default function JobResultsCompare({ jobs, jobNameMap = {}, onJobDeleted 
       // uses -- no separate "job dashboard" stop after a baseline is
       // committed. JobDashboardPage (via "View Dashboard" above) stays the
       // pre-commit review screen only.
-      navigate('project-dashboard')
+      navigate(`/projects/${projectId}`)
     } catch (err) {
       addToast(`Failed to record baseline: ${err.message}`, 'error')
     } finally {

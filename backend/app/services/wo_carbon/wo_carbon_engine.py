@@ -230,6 +230,14 @@ class WoLineItemResult(BaseModel):
     evidence_tier: Optional[str] = None
     gwp_kg_co2e: Optional[float] = None
     basis_note: str
+    # UX refinement (Phase C, Part A): which of coverage.py's fixed six-
+    # reason taxonomy buckets this line fell into, when it wasn't
+    # computed -- set from _classify_wo_exclusion_reason(), the SAME
+    # function calculate_from_work_order()'s own coverage_rows builder
+    # already called (computed once now, read twice, not computed
+    # twice). None for a line that WAS computed. See LineItemResult's
+    # identical field on the boq_carbon side for why.
+    exclusion_reason: Optional[str] = None
     # Workstream 07: the master item-code dataset's own per-Activity-Code
     # top5 flag (human-curated, present since that dataset was first
     # built -- see app.services.coverage's module docstring for why this
@@ -381,12 +389,20 @@ def calculate_from_work_order(
     computed_wo_amount = sum(v["amount"] for v in by_cat.values())
     n_computed = sum(1 for r in line_results if r.gwp_kg_co2e is not None)
 
+    # UX refinement (Phase C, Part A): classify every excluded line's
+    # reason ONCE, store it on the line itself, then have coverage_rows
+    # below just read it back -- same taxonomy, same function, now also
+    # surfaced on line_items for the frontend drill-down.
+    for r in line_results:
+        if r.gwp_kg_co2e is None:
+            r.exclusion_reason = _classify_wo_exclusion_reason(r.basis_note, r.contributes)
+
     coverage_rows = [
         {
             "value": r.amount or 0.0,
             "computed": r.gwp_kg_co2e is not None,
             "is_top5": bool(r.top5),
-            "reason": None if r.gwp_kg_co2e is not None else _classify_wo_exclusion_reason(r.basis_note, r.contributes),
+            "reason": r.exclusion_reason,
         }
         for r in line_results
     ]

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 
 const ProjectContext = createContext(null)
@@ -13,14 +14,14 @@ export function ProjectProvider({ children }) {
   const [isLoading, setIsLoading] = useState(false)
   const [toasts, setToasts] = useState([])
 
-  // UX fix: "View Dashboard" on a BOQ/WO upload result used to open as a
-  // small modal popup -- the user asked for a dedicated full-screen page
-  // instead, consistent with every other screen in the app. Since this
-  // app has no router (a single currentView string, see App.jsx), the
-  // job+result being viewed has to live somewhere both JobResultsCompare
-  // (which has the data) and the new full-page view (rendered by
-  // App.jsx's VIEW_COMPONENTS, with no props) can reach -- here, same
-  // pattern as activeProject/activeProjectId above.
+  // UX fix: "View Dashboard" on a BOQ/WO upload result opens a dedicated
+  // full-screen page (JobDashboardPage, routed at /uploads/:jobId) rather
+  // than a modal popup. This is a same-tab FAST PATH only -- a caller
+  // that already has the job+result in hand (JobResultsCompare.jsx) can
+  // hand them off here so the page doesn't have to re-fetch -- not the
+  // only way that page gets its data. JobDashboardPage also fetches by
+  // the route's own :jobId itself when this doesn't already match (a
+  // direct link, a refresh, Back/Forward), so it works without this too.
   const [dashboardJob, setDashboardJob] = useState(null)
   const [dashboardResult, setDashboardResult] = useState(null)
   const openJobDashboard = useCallback((job, result) => {
@@ -32,25 +33,20 @@ export function ProjectProvider({ children }) {
     setDashboardResult(null)
   }, [])
 
-  // UX refinement: a handle onto App.jsx's tab-navigation function, so a
-  // toast fired from deep inside this context (e.g. a background job
-  // finishing) can offer a "View Results" action that actually switches
-  // tabs. App.jsx registers itself via registerNavigate() on mount --
-  // see this file's bottom for why a ref (not state) is used here.
-  const navigateRef = useRef(null)
-  const registerNavigate = useCallback((fn) => {
-    navigateRef.current = fn
-  }, [])
-  // The invoker side of the same handle: any component can call
-  // navigate('phase3') to switch tabs, e.g. from a toast's action button
-  // fired well after the click that triggered it.
-  const navigate = useCallback((tab) => {
-    navigateRef.current?.(tab)
-  }, [])
+  // Real app routing (Phase C, Part C): a toast fired from deep inside
+  // this context (e.g. a background job finishing) can offer a "View
+  // Results" action that navigates -- ProjectProvider is rendered inside
+  // <BrowserRouter> (see App.jsx), so it can call react-router-dom's own
+  // useNavigate() directly here, same as any component. This replaces
+  // the old navigateRef/registerNavigate indirection entirely (that
+  // existed only because there was no router for App.jsx to hand a real
+  // navigate function through) -- nothing else in this file depends on
+  // it, so it's not exposed on the context value below.
+  const routerNavigate = useNavigate()
 
   // Toast Notification helper. `action`, when given, is {label, onClick} --
   // rendered as a small button on the toast (see Toast.jsx) that runs
-  // onClick and dismisses the toast, e.g. { label: 'View Results', onClick: () => navigateRef.current?.('phase2') }.
+  // onClick and dismisses the toast, e.g. { label: 'View Results', onClick: () => routerNavigate('/analyze-boq') }.
   const addToast = useCallback((message, type = 'success', duration = 4000, action = null) => {
     const id = Date.now() + Math.random().toString(36).substring(2, 6)
     setToasts((prev) => [...prev, { id, message, type, action }])
@@ -178,7 +174,7 @@ export function ProjectProvider({ children }) {
                 `${job.kind.toUpperCase()} calculation finished for "${job.source_filename}"`,
                 'success',
                 10000,
-                { label: 'View Results', onClick: () => navigateRef.current?.('analyze-boq') }
+                { label: 'View Results', onClick: () => routerNavigate('/analyze-boq') }
               )
             } else if (job.status === 'failed') {
               addToast(`${job.kind.toUpperCase()} calculation failed for "${job.source_filename}": ${job.error}`, 'error', 10000)
@@ -320,8 +316,6 @@ export function ProjectProvider({ children }) {
         toasts,
         addToast,
         removeToast,
-        registerNavigate,
-        navigate,
         activeJobs,
         dashboardJob,
         dashboardResult,

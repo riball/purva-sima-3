@@ -2,7 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import boq_carbon, boq_carbon_substitute, calculate, companies, factors, form, onboarding, operational_emissions, phase3, phase4, projects, refine, substitute, uploads, wo_carbon
+from app.api import boq_carbon, boq_carbon_substitute, calculate, companies, factors, form, onboarding, operational_emissions, phase3, phase4, projects, refine, substitute, swap_sandbox, uploads, wo_carbon
 
 app = FastAPI(title="Sima API")
 
@@ -36,6 +36,7 @@ app.include_router(factors.router)  # WS09: read-only versioned emission-factor 
 app.include_router(phase3.router)  # WS10: Phase 3 -- project baseline, periodic bills, running-carbon dashboard
 app.include_router(companies.router)  # WS15: a real company registry -- list/create, replacing the old free-text-only company_id
 app.include_router(phase4.router)  # WS14: Phase 4 -- confirm/recalculate/audit, the last workstream on the roadmap
+app.include_router(swap_sandbox.router)  # Material Swap Sandbox: free-text swap requests -- persists into the same Phase 4 Recommendation store, confirm/reject reuse phase4.router's endpoints unchanged
 app.include_router(projects.router)  # UX refinement: named-project registry -- save/search/rename a project by name from anywhere
 app.include_router(uploads.router)  # UX refinement: background BOQ/WO calculation jobs + combined upload -- see app/services/job_store.py, upload_jobs.py
 app.include_router(operational_emissions.router)  # New feature: Scope 1 & 2 operational emissions calculator (site fuel + grid electricity) -- see app/services/operational_emissions.py for why this is its own router/data model, separate from the embodied-carbon project pipeline above

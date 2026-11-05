@@ -8,6 +8,7 @@ import {
 import {
   BarChart, Bar, LineChart, Line, AreaChart, Area, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
 } from 'recharts'
+import { useNavigate, useParams } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import { downloadCsv } from '../../utils/csvExport'
@@ -454,10 +455,19 @@ function IntensityOverTimeChart({ dashboardPoints, baseline, height = 320, varia
 // estimateBill or the baseline's own estimated total -- never silent
 // about the distinction, per the user's own "mentioning it as an
 // 'estimate'" wording.
-export function EstimateBadge({ text = 'Estimated from the locked Conceptual Estimate baseline -- no bills logged yet, so this is not a measured breakdown.' }) {
+export function EstimateBadge({
+  text = 'Estimated from the locked Conceptual Estimate baseline -- no bills logged yet, so this is not a measured breakdown.',
+  // `label`/`badgeClassName` added so this same badge can honestly
+  // distinguish a rough Phase-1 estimate ("Estimate", amber -- treat with
+  // caution) from a real priced BOQ/WO baseline that simply has no bills
+  // logged yet ("Priced Baseline", mint -- the numbers are real, just not
+  // bill-confirmed). Defaults keep every existing call site unchanged.
+  label = 'Estimate',
+  badgeClassName = 'badge-amber',
+}) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-      <span className="badge badge-amber" style={{ fontSize: '0.68rem' }}>Estimate</span>
+      <span className={`badge ${badgeClassName}`} style={{ fontSize: '0.68rem' }}>{label}</span>
       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{text}</span>
     </div>
   )
@@ -646,7 +656,15 @@ function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight
     if (chartData.estimateBill) {
       return (
         <>
-          <EstimateBadge />
+          {chartData.estimateBill.is_estimated ? (
+            <EstimateBadge />
+          ) : (
+            <EstimateBadge
+              label="Priced Baseline"
+              badgeClassName="badge-mint"
+              text="From the locked BOQ/Work Order baseline -- no bills logged yet, so this isn't a bill-measured breakdown, but the numbers themselves are real (priced, not estimated)."
+            />
+          )}
           <EstimatedMaterialBreakdownDonut
             materialBreakdown={chartData.estimateBill.category_breakdown}
             totalCarbonKg={chartData.baseline?.total_gwp_kg_co2e}
@@ -663,7 +681,15 @@ function renderChartBody(dataset, chartData, { chartHeight = 320, explorerHeight
     if (chartData.estimateBill) {
       return (
         <>
-          <EstimateBadge />
+          {chartData.estimateBill.is_estimated ? (
+            <EstimateBadge />
+          ) : (
+            <EstimateBadge
+              label="Priced Baseline"
+              badgeClassName="badge-mint"
+              text="From the locked BOQ/Work Order baseline -- no bills logged yet, so this isn't a bill-measured breakdown, but the numbers themselves are real (priced, not estimated)."
+            />
+          )}
           <MaterialRankingChart bills={[chartData.estimateBill]} height={chartHeight} variant={variant} />
         </>
       )
@@ -906,7 +932,34 @@ function ChartBuilderModal({ isOpen, onClose, tab, onTabChange, onAddPreset, onA
 }
 
 export default function ProjectDashboard() {
-  const { activeCompanyId, activeProjectId, activeProject, loadProjects, addToast, navigate, selectProject } = useProject()
+  const { activeCompanyId, activeProjectId, activeProject, loadProjects, addToast, selectProject, openJobDashboard } = useProject()
+  const navigate = useNavigate()
+  const { projectId: routeProjectId } = useParams()
+
+  // Real app routing (Phase C, Part C): keep context's activeProjectId in
+  // sync with the URL -- opening /projects/:projectId directly (a fresh
+  // load, a bookmark, Back/Forward) has to select that project itself,
+  // rather than relying on a prior in-app click having already called
+  // selectProject(). Every other effect/handler below still reads
+  // activeProjectId from context unchanged.
+  useEffect(() => {
+    if (routeProjectId && routeProjectId !== activeProjectId) {
+      selectProject(routeProjectId)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeProjectId])
+
+  // UX refinement (Phase C, Part B): "if i create a project from the boq
+  // upload page... I cant come back to it from the project dashboard" --
+  // the id of the upload job (if any) whose "Use as Baseline" action
+  // created/updated THIS project's baseline. job_store.JobRecord.project_id
+  // already records this link on the backend (set once, in
+  // upload_jobs.use_job_as_baseline) -- this just surfaces it. Null
+  // whenever this project's baseline didn't come from an upload job at
+  // all (phase1_estimate), or no matching job is found -- rendered as no
+  // button at all, never a disabled one (see the effect below).
+  const [linkedUploadJobId, setLinkedUploadJobId] = useState(null)
+  const [isLoadingUploadResults, setIsLoadingUploadResults] = useState(false)
 
   const [activeSection, setActiveSection] = useState('summary')
 
@@ -1069,6 +1122,48 @@ export default function ProjectDashboard() {
     }
   }
 
+  // UX refinement (Phase C, Part B): find the one upload job (if any)
+  // that was recorded as THIS project's baseline. At most one per
+  // project (job_store.py's own docstring: a baseline is recorded once,
+  // `overwrite` replaces the link rather than adding a second one), so
+  // the first match is the only match. Only runs for a boq/wo baseline
+  // -- a phase1_estimate (Conceptual Estimate) project was never an
+  // upload job in the first place, so there's nothing to find and no
+  // button to show.
+  useEffect(() => {
+    const requestedProjectId = activeProjectId
+    const sourceType = activeProject?.baseline_source_type
+    if (!activeProjectId || (sourceType !== 'boq' && sourceType !== 'wo')) {
+      setLinkedUploadJobId(null)
+      return
+    }
+    api.listJobs(activeCompanyId).then((jobs) => {
+      if (activeProjectIdRef.current !== requestedProjectId) return
+      const match = (jobs || []).find((j) => j.project_id === requestedProjectId)
+      setLinkedUploadJobId(match ? match.job_id : null)
+    }).catch(() => {
+      if (activeProjectIdRef.current !== requestedProjectId) return
+      setLinkedUploadJobId(null)
+    })
+  }, [activeProjectId, activeCompanyId, activeProject?.baseline_source_type])
+
+  const handleViewUploadResults = async () => {
+    if (!linkedUploadJobId) return
+    setIsLoadingUploadResults(true)
+    try {
+      const [job, result] = await Promise.all([
+        api.getJob(linkedUploadJobId, activeCompanyId),
+        api.getJobResult(linkedUploadJobId, activeCompanyId),
+      ])
+      openJobDashboard(job, result)
+      navigate(`/uploads/${linkedUploadJobId}`)
+    } catch (err) {
+      addToast(`Could not load this upload's results: ${err.message}`, 'error')
+    } finally {
+      setIsLoadingUploadResults(false)
+    }
+  }
+
   const loadCatalog = async () => {
     try {
       const cat = await api.getBoqCatalog()
@@ -1216,7 +1311,7 @@ export default function ProjectDashboard() {
         `Created "${result.new_project_name}" with the substituted figures — this project's own numbers are unchanged.`,
         'success',
         8000,
-        { label: 'View Beta Project', onClick: () => { selectProject(result.new_project_id); navigate('project-dashboard') } }
+        { label: 'View Beta Project', onClick: () => navigate(`/projects/${result.new_project_id}`) }
       )
       loadPhase4Data()
       loadProjects(activeCompanyId) // so the Directory's Beta section picks up the new twin immediately
@@ -1261,7 +1356,7 @@ export default function ProjectDashboard() {
         `Created "${result.new_project_name}" with the substituted figures — this project's own numbers are unchanged.`,
         'success',
         8000,
-        { label: 'View Beta Project', onClick: () => { selectProject(result.new_project_id); navigate('project-dashboard') } }
+        { label: 'View Beta Project', onClick: () => navigate(`/projects/${result.new_project_id}`) }
       )
       setAdjustingPreviewId(null)
       loadPhase4Data()
@@ -1357,12 +1452,22 @@ export default function ProjectDashboard() {
   // (the real array) is always what gates whether real-bill UI shows.
   const estimateBill = useMemo(() => {
     const baseline = dashboard?.baseline
-    if (!baseline?.is_estimated || !baseline.material_breakdown || baseline.material_breakdown.length === 0) return null
+    // Fix: this used to require baseline.is_estimated, so a real priced
+    // BOQ/WO baseline -- which now also carries its own material_breakdown
+    // snapshot, see phase3.py's baseline_from_boq_result/
+    // baseline_from_wo_result -- never reached this path at all, even
+    // though the same donut/ranking charts below render it perfectly well
+    // before any bill exists. Gate on the data actually being present
+    // instead, and carry `is_estimated` through so callers can still tell
+    // a rough Phase-1 estimate apart from a real priced baseline that
+    // just hasn't been billed against yet.
+    if (!baseline?.material_breakdown || baseline.material_breakdown.length === 0) return null
     return {
       quantity_basis: 'cummulative',
       category_breakdown: baseline.material_breakdown,
-      period: 'Conceptual Estimate',
+      period: baseline.is_estimated ? 'Conceptual Estimate' : 'Priced Baseline',
       billed_date: baseline.recorded_at,
+      is_estimated: !!baseline.is_estimated,
     }
   }, [dashboard])
 
@@ -1496,10 +1601,22 @@ export default function ProjectDashboard() {
       {/* Header: back-to-directory + project name + quick menu. */}
       <div className="glass-panel" style={{ position: 'relative', zIndex: 30, padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <button onClick={() => navigate('project')} className="btn-secondary" style={{ fontSize: '0.78rem' }} title="Back to the Projects & Embodied Carbon Directory">
+          <button onClick={() => navigate('/projects')} className="btn-secondary" style={{ fontSize: '0.78rem' }} title="Back to the Projects & Embodied Carbon Directory">
             <ArrowLeft size={14} />
             <span>All Projects</span>
           </button>
+          {linkedUploadJobId && (
+            <button
+              onClick={handleViewUploadResults}
+              disabled={isLoadingUploadResults}
+              className="btn-secondary"
+              style={{ fontSize: '0.78rem' }}
+              title="Open the full BOQ/Work Order upload results this project's baseline was recorded from"
+            >
+              <Upload size={14} />
+              <span>{isLoadingUploadResults ? 'Loading…' : 'View Upload Results'}</span>
+            </button>
+          )}
           <div>
             {originLabel(activeProject?.baseline_source_type) && (
               <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent-mint)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
@@ -1828,7 +1945,15 @@ export default function ProjectDashboard() {
               </>
             ) : estimateBill ? (
               <>
-                <EstimateBadge text="From the locked Conceptual Estimate baseline -- no bills logged yet, so this isn't a real measured breakdown." />
+                {estimateBill.is_estimated ? (
+                  <EstimateBadge text="From the locked Conceptual Estimate baseline -- no bills logged yet, so this isn't a real measured breakdown." />
+                ) : (
+                  <EstimateBadge
+                    label="Priced Baseline"
+                    badgeClassName="badge-mint"
+                    text="From the locked BOQ/Work Order baseline -- no bills logged yet, so this isn't a bill-measured breakdown, but the numbers themselves are real (priced, not estimated)."
+                  />
+                )}
                 <EstimatedMaterialBreakdownDonut
                   materialBreakdown={estimateBill.category_breakdown}
                   totalCarbonKg={dashboard?.baseline?.total_gwp_kg_co2e}
@@ -1926,13 +2051,39 @@ export default function ProjectDashboard() {
               Confirming a swap here never changes this project's own numbers — it opens a new twin project with the substituted figures, listed under "Material Change Projects (Beta)" in the Directory.
             </p>
 
+            {/* Entry point into the Swap Sandbox -- a dedicated page for
+                describing an ARBITRARY swap in plain words (no strict
+                keywords, typo-tolerant), not limited to the fixed catalog
+                cards below. Kept as its own page (not inline here) since
+                it has its own free-text input + evaluation history, per
+                the approved plan. activeProjectId/activeCompanyId are
+                already set in context, so the sandbox page just reads
+                them itself -- no params to pass through navigate(). */}
+            <div className="glass-panel" style={{ padding: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', border: '1px solid rgba(var(--c-violet), 0.25)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: '8px', background: 'rgba(var(--c-violet), 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-violet)', flexShrink: 0 }}>
+                  <Wand2 size={18} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)' }}>Describe your own swap, in plain words</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                    Not limited to the catalog below — e.g. "reduce RCC to 80% and make the rest M25 with GGBS". Typos are fine.
+                  </div>
+                </div>
+              </div>
+              <button type="button" onClick={() => navigate(`/projects/${activeProjectId}/swap-sandbox`)} className="btn-primary" style={{ fontSize: '0.8125rem', whiteSpace: 'nowrap' }}>
+                <Wand2 size={14} />
+                <span>Open Swap Sandbox</span>
+              </button>
+            </div>
+
             {recentBetaFork && (
               <div className="glass-panel" style={{ padding: 16, border: '1px solid rgba(var(--c-blue), 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
                   Created <strong>{recentBetaFork.newProjectName}</strong> with the substituted figures.
                 </span>
                 <button
-                  onClick={() => { selectProject(recentBetaFork.newProjectId); navigate('project-dashboard') }}
+                  onClick={() => navigate(`/projects/${recentBetaFork.newProjectId}`)}
                   className="btn-primary"
                   style={{ fontSize: '0.78rem' }}
                 >

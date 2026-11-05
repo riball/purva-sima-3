@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 
@@ -112,7 +113,8 @@ function buildFormPayload(formData, companyId, gfaValueToSqm) {
 }
 
 export function Phase1FormProvider({ children }) {
-  const { activeCompanyId, activeProjectId, selectProject, loadProjects, addToast, navigate, projects } = useProject()
+  const { activeCompanyId, activeProjectId, selectProject, loadProjects, addToast, projects } = useProject()
+  const navigate = useNavigate()
 
   const [step, setStep] = useState('mandatory')
 
@@ -355,7 +357,7 @@ export function Phase1FormProvider({ children }) {
       await loadProjects(activeCompanyId)
       selectProject(savedProject.project_id)
       addToast('Baseline locked -- project is now tracked', 'success')
-      navigate('project-dashboard')
+      navigate(`/projects/${savedProject.project_id}`)
     } catch (err) {
       addToast(`Failed to lock baseline: ${err.message}`, 'error')
     } finally {

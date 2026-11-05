@@ -7,6 +7,7 @@ import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   PieChart, Pie, Cell,
 } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import StatCard from '../common/StatCard'
@@ -62,7 +63,8 @@ const STATUS_FILTERS = [
 const SERIES_COLORS = { baseline: 'var(--chart-ord-light)', billed: 'var(--chart-ord-mid)', projected: 'var(--chart-ord-dark)' }
 
 export default function PortfolioOverview() {
-  const { projects, activeCompanyId, selectProject, navigate, isLoading: projectsLoading, loadProjects } = useProject()
+  const { projects, activeCompanyId, selectProject, isLoading: projectsLoading, loadProjects } = useProject()
+  const navigate = useNavigate()
 
   // Performance fix: this used to also hold a per-project `dashboards`
   // state, filled by firing ONE api.getDashboard() call per baselined
@@ -318,11 +320,11 @@ export default function PortfolioOverview() {
 
   function openProject(projectId) {
     selectProject(projectId)
-    // 'project' is now the Directory grid, not a single project's
-    // dashboard (see the "Projects & Embodied Carbon Directory + Project
-    // Dashboard rebuild" plan) -- 'project-dashboard' is where
-    // ProjectDashboard itself lives now.
-    navigate('project-dashboard')
+    // /projects is the Directory grid, not a single project's dashboard
+    // (see the "Projects & Embodied Carbon Directory + Project Dashboard
+    // rebuild" plan) -- /projects/:projectId is where ProjectDashboard
+    // itself lives now.
+    navigate(`/projects/${projectId}`)
   }
 
   function categoryLabel(category) {
@@ -351,19 +353,19 @@ export default function PortfolioOverview() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button onClick={() => navigate('project')} className="btn-primary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
+          <button onClick={() => navigate('/projects')} className="btn-primary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
             <Building2 size={14} />
             <span>Browse All Projects</span>
           </button>
-          <button onClick={() => navigate('tracking')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
+          <button onClick={() => navigate('/tracking')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
             <TrendingUp size={14} />
             <span>Carbon Tracking</span>
           </button>
-          <button onClick={() => navigate('analyze-boq')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
+          <button onClick={() => navigate('/analyze-boq')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
             <FileSpreadsheet size={14} />
             <span>Analyze BOQ</span>
           </button>
-          <button onClick={() => navigate('conceptual-estimate')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
+          <button onClick={() => navigate('/conceptual-estimate')} className="btn-secondary" style={{ fontSize: '0.78rem', padding: '7px 12px' }}>
             <Sparkles size={14} />
             <span>Conceptual Estimate</span>
           </button>

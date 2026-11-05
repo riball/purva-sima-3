@@ -212,3 +212,145 @@ def get_steel_rebar_factor_per_kg_ice_fallback() -> float:
     """
     factors = load_factors()
     return factors["steel"]["rebar"]["value"]
+
+
+# ---------------------------------------------------------------------------
+# Continuous blend-composition percentage (GGBS%, fly-ash%) -- added for
+# the Material Swap Sandbox's custom-percentage feature (see
+# swap_sandbox.py's module docstring for the user-facing side of this).
+#
+# IFC's own cement-type table gives exactly TWO real data points on each
+# of these axes: OPC (0% of the component) and the one blend IFC actually
+# measured (PSC = a real ~25% GGBS blend, PPC = a real ~30% fly-ash
+# blend -- see substitution_catalog.json's opc_to_psc/opc_to_ppc
+# `reasoning` fields, which say this explicitly). There is no third real
+# point and no sourced curve. An arbitrary percentage is therefore a
+# straight line drawn through those two real points, NOT a third sourced
+# number -- every caller of get_blended_cement_factor_per_kg must
+# disclose that plainly (see swap_sandbox.py's resolve_intent_to_entry).
+# This module only computes the number and a confidence tier; it never
+# writes disclosure prose itself.
+#
+# This deliberately does NOT extend to steel recycled-content or any
+# other "percentage" in the catalog. brick_to_aac_block and
+# steel_ifc_to_ars_eaf_recycled are both SCOPE swaps (what fraction of a
+# project's total quantity switches to a different product), already
+# handled by substitution_engine's split_pct/user_pct, not a composition
+# blend within one product. Worse, for steel specifically,
+# substitution_catalog.json's own evidence_log records real third-party
+# EPD data showing recycled-content% does NOT predict GWP linearly
+# (Raajratna at ~23% recycled scores essentially the same as the
+# non-recycled IFC baseline; a 100% BF/BOF-route EPD scores *higher* than
+# that same baseline). Treating "recycled-steel %" as an interpolatable
+# axis the way GGBS%/fly-ash% are would fabricate a linear relationship
+# this codebase's own on-file evidence contradicts -- so it's withheld
+# on purpose, not an oversight.
+BLEND_COMPONENTS: dict[str, dict] = {
+    "ggbs": {
+        "zero_cement_type": "OPC",
+        "documented_cement_type": "PSC",
+        "documented_pct": 25.0,
+        "code_ceiling_pct": 50.0,
+        "code_basis": "IS 455 / common Indian RMC-plant practice",
+        "label": "GGBS/slag",
+    },
+    "fly_ash": {
+        "zero_cement_type": "OPC",
+        "documented_cement_type": "PPC",
+        "documented_pct": 30.0,
+        "code_ceiling_pct": 30.0,
+        "code_basis": "IS 1489",
+        "label": "fly-ash/pozzolana",
+    },
+}
+
+
+def get_blended_cement_factor_per_kg(component: str, target_pct: float, apply_cea: bool = True) -> dict:
+    """Linearly interpolates/extrapolates a per-kg concrete GWP figure
+    for an arbitrary `target_pct` of `component` ("ggbs" or "fly_ash"),
+    through the two real IFC data points on that axis (see
+    BLEND_COMPONENTS above). The two anchors are each CEA-adjusted first
+    (same apply_cea_adjustment_ifc() call the discrete get_concrete_
+    factor_per_m3_ifc() path already makes), then a straight line is
+    drawn through those two final numbers and evaluated at target_pct --
+    this treats "the emission factor as a function of blend %" as the
+    thing being interpolated, which is the real question being asked,
+    rather than interpolating some intermediate quantity.
+
+    Returns a dict: per_kg, confidence, documented_pct, code_ceiling_pct,
+    code_basis, label. confidence is one of:
+      - "interpolated" -- target_pct is between the real 0% point and
+        the real documented_pct point (e.g. 0-25% for GGBS). The
+        straight line connects two real measurements, so this is a
+        reasonable estimate, but it is still NOT an independently
+        measured number for exactly target_pct.
+      - "extrapolated_within_code_ceiling" -- target_pct is past the one
+        real documented point but still at or below the real IS-code
+        recommended ceiling for this blend (code_ceiling_pct/code_basis).
+        A rougher estimate -- the line is projected past the only point
+        that actually anchors it on that side.
+      - "extrapolated_beyond_code_ceiling" -- target_pct exceeds the
+        real code-recommended ceiling. Still computed and returned (this
+        function never refuses a request), but the caller should surface
+        a strong caveat: the underlying emissions relationship may not
+        even stay linear this far past the one point IFC measured, and
+        a blend this high needs engineering review regardless of the
+        carbon figure.
+
+    Raises ValueError for an unknown component or a pct outside 0-100 --
+    those are invalid inputs, not estimation-confidence questions.
+    """
+    from app.services.cea_adjustment import apply_cea_adjustment_ifc
+
+    if component not in BLEND_COMPONENTS:
+        raise ValueError(f"Unknown blend component '{component}' -- valid: {sorted(BLEND_COMPONENTS)}")
+    if target_pct < 0 or target_pct > 100:
+        raise ValueError(f"Blend percentage must be 0-100, got {target_pct:g}")
+
+    axis = BLEND_COMPONENTS[component]
+    zero_entry = get_concrete_factor_ifc(axis["zero_cement_type"])
+    doc_entry = get_concrete_factor_ifc(axis["documented_cement_type"])
+
+    zero_per_kg = zero_entry["gwp_kgco2e_per_kg"]
+    doc_per_kg = doc_entry["gwp_kgco2e_per_kg"]
+    if apply_cea:
+        zero_per_kg = apply_cea_adjustment_ifc(zero_per_kg, zero_entry["energy_derived_fraction_of_gwp"])
+        doc_per_kg = apply_cea_adjustment_ifc(doc_per_kg, doc_entry["energy_derived_fraction_of_gwp"])
+
+    documented_pct = axis["documented_pct"]
+    slope = (doc_per_kg - zero_per_kg) / documented_pct
+    interpolated_per_kg = zero_per_kg + slope * target_pct
+
+    if target_pct <= documented_pct:
+        confidence = "interpolated"
+    elif target_pct <= axis["code_ceiling_pct"]:
+        confidence = "extrapolated_within_code_ceiling"
+    else:
+        confidence = "extrapolated_beyond_code_ceiling"
+
+    return {
+        "per_kg": interpolated_per_kg,
+        "confidence": confidence,
+        "documented_pct": documented_pct,
+        "code_ceiling_pct": axis["code_ceiling_pct"],
+        "code_basis": axis["code_basis"],
+        "label": axis["label"],
+    }
+
+
+def get_concrete_factor_per_m3_blend(
+    component: str, target_pct: float, grade: Optional[str] = None, apply_cea: bool = True
+) -> tuple[float, dict]:
+    """Same shape/role as get_concrete_factor_per_m3_ifc() above, but
+    sourcing its per_kg figure from get_blended_cement_factor_per_kg()'s
+    interpolation instead of a discrete cement-type lookup. Density and
+    grade-scaling (get_concrete_grade_scale_factor) are applied
+    identically to the discrete path -- only the per_kg origin differs.
+    Returns (per_m3, blend_info) so the caller never has to recompute
+    the confidence/disclosure metadata separately from the number.
+    """
+    factors = load_factors()
+    density = factors["ifc_india"]["concrete"]["default_density_kg_per_m3"]
+    blend = get_blended_cement_factor_per_kg(component, target_pct, apply_cea=apply_cea)
+    per_kg = blend["per_kg"] * get_concrete_grade_scale_factor(grade)
+    return per_kg * density, blend

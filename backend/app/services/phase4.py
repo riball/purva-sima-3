@@ -66,13 +66,21 @@ from typing import Literal, Optional
 from pydantic import BaseModel
 
 from app.services import company_store, phase3
-from app.services.boq_carbon import substitution_engine
+from app.services.boq_carbon import substitution_engine, swap_sandbox
 from app.services.boq_carbon.engine import BoqCarbonResult, CategoryTotal, SQM_TO_SQFT
 from app.services.boq_carbon.substitution_engine import AnyCarbonResult, _line_category
 from app.services.supplier_catalog import get_entry as get_substitution, load_catalog
 from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, WoCategoryTotal
 
-RecommendationSource = Literal["substitution_catalog"]
+# "custom_swap" (added for the Material Swap Sandbox -- see
+# app.services.boq_carbon.swap_sandbox's own module docstring): a
+# Recommendation sourced from a free-text sandbox request instead of the
+# fixed substitution_catalog.json. It carries its own synthesized
+# `custom_entry` dict (see Recommendation below) rather than a
+# substitution_id, since there's no catalog row to reference -- but it's
+# otherwise a real Recommendation, stored/listed/confirmed/rejected
+# through the exact same functions as a catalog-sourced one.
+RecommendationSource = Literal["substitution_catalog", "custom_swap"]
 # "confirmed_as_beta" (added alongside confirm_recommendation_as_beta_twin()
 # below): distinct from "confirmed" on purpose -- a plain "confirmed"
 # recommendation overwrote THIS project's own current state
@@ -89,7 +97,25 @@ class Recommendation(BaseModel):
     project_id: str
     company_id: str
     source: RecommendationSource
-    substitution_id: str
+    # None only for source == "custom_swap" -- there's no catalog row to
+    # reference, see custom_entry below.
+    substitution_id: Optional[str] = None
+    # Set only for source == "custom_swap" -- the actual entry dict
+    # swap_sandbox.resolve_intent_to_entry() synthesized, in the exact
+    # shape substitution_engine's _lines_affected_by/
+    # _recompute_line_at_substitute already consume. Stored here (not
+    # re-parsed from the original question) so confirming/forking later
+    # replays the EXACT same entry that was evaluated, not a fresh
+    # re-parse that could theoretically land on a different combination.
+    custom_entry: Optional[dict] = None
+    # Set only for source == "custom_swap" -- the full disclosure/advisory
+    # text swap_sandbox.evaluate_custom_swap() produced, carried onto the
+    # stored Recommendation (not just its numbers) so the Swap Sandbox's
+    # history still shows the complete original evaluation -- snap-to-
+    # nearest-real-option disclosures included -- after a page reload,
+    # not only right after the request was made.
+    disclosures: list[str] = []
+    advisory: Optional[swap_sandbox.SwapAdvisory] = None
     label: str
     user_pct: float
     description: str
@@ -113,7 +139,7 @@ class AuditLogEntry(BaseModel):
     id: str
     recommendation_id: str
     source: RecommendationSource
-    substitution_id: str
+    substitution_id: Optional[str] = None  # None for a custom_swap-sourced entry, see Recommendation above
     label: str
     user_pct: float
     description: str
@@ -399,6 +425,23 @@ def evaluate_catalog_preview(company_id: str, project_id: str) -> list[CatalogPr
     return previews
 
 
+def _resolve_entry_for_recommendation(rec: Recommendation) -> dict:
+    """The real entry dict a Recommendation's own real-recompute math
+    runs against -- a catalog row looked up by substitution_id for a
+    "substitution_catalog" rec, or the already-synthesized custom_entry
+    for a "custom_swap" one. Used by both confirm_recommendation() and
+    confirm_recommendation_as_beta_twin() so the two don't each carry
+    their own copy of this branch."""
+    if rec.source == "custom_swap":
+        if rec.custom_entry is None:
+            raise ValueError(f"Recommendation '{rec.id}' is a custom swap with no stored entry -- cannot act on it.")
+        return rec.custom_entry
+    entry = get_substitution(rec.substitution_id)
+    if entry is None:
+        raise ValueError(f"Unknown substitution_id '{rec.substitution_id}' -- the catalog entry this recommendation referenced no longer exists.")
+    return entry
+
+
 def propose_recommendation(company_id: str, project_id: str, substitution_id: str, user_pct: float) -> Recommendation:
     entry = get_substitution(substitution_id)
     if entry is None:
@@ -433,6 +476,71 @@ def propose_recommendation(company_id: str, project_id: str, substitution_id: st
     return rec
 
 
+class CustomSwapProposalResult(BaseModel):
+    """Returned by evaluate_and_propose_custom_swap() below -- the full
+    swap_sandbox.CustomSwapEvaluation (interpretation, computed numbers,
+    disclosures, advisory) for immediate display, PLUS the Recommendation
+    it was persisted as, so the caller can confirm-as-beta/reject it
+    later without re-parsing the original question. `recommendation` is
+    None exactly when `evaluation.needs_clarification` is set -- nothing
+    is persisted for a request this app couldn't resolve into a real
+    swap, per this module's own "no new calculation logic without a real
+    state to feed it" discipline."""
+
+    evaluation: swap_sandbox.CustomSwapEvaluation
+    recommendation: Optional[Recommendation] = None
+
+
+def evaluate_and_propose_custom_swap(company_id: str, project_id: str, question: str) -> CustomSwapProposalResult:
+    """The Swap Sandbox's own entry point -- stateful orchestration
+    (load current_state, persist a pending Recommendation) deliberately
+    kept HERE rather than in swap_sandbox.py itself, so that module stays
+    a pure compute module with no I/O/persistence concerns, exactly
+    mirroring substitution_engine.py's own shape. The actual parsing/
+    resolving/computing is entirely swap_sandbox.evaluate_custom_swap()
+    -- this function's only job is loading its input and, when it
+    produced a real result, storing it as the same kind of Recommendation
+    row every other source already uses (same list/confirm/reject
+    functions, same audit trail, source="custom_swap" is the only
+    difference)."""
+    current = _load_current_state(company_id, project_id)
+    evaluation = swap_sandbox.evaluate_custom_swap(question, current)
+
+    if evaluation.needs_clarification or evaluation.entry is None or evaluation.computed is None:
+        return CustomSwapProposalResult(evaluation=evaluation, recommendation=None)
+
+    entry = evaluation.entry
+    result = evaluation.computed
+    rec = Recommendation(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        company_id=company_id,
+        source="custom_swap",
+        substitution_id=None,
+        custom_entry=entry,
+        disclosures=evaluation.disclosures,
+        advisory=evaluation.advisory,
+        label=entry.get("substitute_label", entry["id"]),
+        user_pct=evaluation.intent.split_pct,
+        description=evaluation.interpretation_summary or question,
+        reasoning=entry["reasoning"],
+        requires_engineering_review=result.requires_engineering_review,
+        affected_line_item_count=result.affected_line_item_count,
+        carbon_kg_before=result.original_gwp_kg_co2e,
+        carbon_kg_after=result.new_gwp_kg_co2e,
+        delta_kg=result.savings_kg_co2e,
+        delta_pct=result.savings_pct_of_affected_lines,
+        status="pending",
+        created_at=datetime.utcnow().isoformat(),
+    )
+
+    recs = _load_recommendations(company_id, project_id)
+    recs.append(rec)
+    _save_recommendations(company_id, project_id, recs)
+
+    return CustomSwapProposalResult(evaluation=evaluation, recommendation=rec)
+
+
 def confirm_recommendation(company_id: str, project_id: str, recommendation_id: str) -> ConfirmResult:
     recs = _load_recommendations(company_id, project_id)
     rec = next((r for r in recs if r.id == recommendation_id), None)
@@ -441,9 +549,7 @@ def confirm_recommendation(company_id: str, project_id: str, recommendation_id: 
     if rec.status != "pending":
         raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be confirmed.")
 
-    entry = get_substitution(rec.substitution_id)
-    if entry is None:
-        raise ValueError(f"Unknown substitution_id '{rec.substitution_id}' -- the catalog entry this recommendation referenced no longer exists.")
+    entry = _resolve_entry_for_recommendation(rec)
 
     current = _load_current_state(company_id, project_id)
     before_total = current.total_gwp_kg_co2e
@@ -481,21 +587,34 @@ def confirm_recommendation(company_id: str, project_id: str, recommendation_id: 
     )
 
 
-def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recommendation_id: str) -> BetaForkResult:
-    """The user-facing "Confirm Change" action in the Project Dashboard's
-    Material Alternatives (Beta) section -- deliberately NOT a variant of
-    confirm_recommendation() above, which is left completely untouched
-    (still does its original in-place overwrite, in case anything else
-    ever depends on it) and is simply no longer called by that UI.
+class ProjectForkResult(BaseModel):
+    """Returned by _fork_project_with_overlay() below -- just the new
+    project's identity/total, with no Recommendation attached, since the
+    helper itself is recommendation-agnostic (see that function's own
+    docstring). The caller wraps this into a BetaForkResult alongside
+    whichever Recommendation it came from."""
 
-    Instead of overwriting this project's own current state, this forks
-    a brand-new sibling project carrying the substituted figures, and
-    NEVER writes to this project's save_source_result or audit log --
-    the source project is byte-for-byte unaffected by confirming a Beta
-    change. The new project is a real project in every other respect
-    (own baseline, own bills, openable/findable like any other); it's
-    only grouped separately in the Directory via
+    new_project_id: str
+    new_project_name: str
+    new_project_total_gwp_kg_co2e: float
+
+
+def _fork_project_with_overlay(company_id: str, project_id: str, entry: dict, user_pct: float, label: str) -> ProjectForkResult:
+    """Forks a brand-new sibling project carrying `entry`'s substituted
+    figures (at `user_pct`), and NEVER writes to the SOURCE project's own
+    save_source_result or audit log -- the source project is byte-for-
+    byte unaffected. The new project is a real project in every other
+    respect (own baseline, own bills, openable/findable like any other);
+    it's only grouped separately in the Directory via
     project_registry.mark_as_beta_twin()'s is_beta_twin flag.
+
+    Extracted from what was confirm_recommendation_as_beta_twin()'s own
+    body, unchanged in substance -- parametrized by a plain entry/
+    user_pct/label instead of reading them off a Recommendation, so both
+    the fixed-catalog confirm path AND the swap sandbox's custom-entry
+    confirm path (confirm_recommendation_as_beta_twin() below handles
+    both, see _resolve_entry_for_recommendation()) call this ONE fork
+    implementation rather than each carrying their own ~100-line copy.
 
     The new project's bill history is copied from the source project
     unchanged, except the LATEST bill's carbon figures (never its period/
@@ -509,19 +628,8 @@ def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recomm
     """
     from app.services import project_registry  # lazy import, same reason project_registry.py itself lazily imports phase3/project_store
 
-    recs = _load_recommendations(company_id, project_id)
-    rec = next((r for r in recs if r.id == recommendation_id), None)
-    if rec is None:
-        raise ValueError(f"No recommendation '{recommendation_id}' found for project '{project_id}'")
-    if rec.status != "pending":
-        raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be confirmed.")
-
-    entry = get_substitution(rec.substitution_id)
-    if entry is None:
-        raise ValueError(f"Unknown substitution_id '{rec.substitution_id}' -- the catalog entry this recommendation referenced no longer exists.")
-
     current = _load_current_state(company_id, project_id)
-    new_result = _apply_overlay_to_result(entry, rec.user_pct, current)
+    new_result = _apply_overlay_to_result(entry, user_pct, current)
 
     baseline = phase3.load_baseline(company_id, project_id)
     if baseline is None:
@@ -567,7 +675,7 @@ def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recomm
             company_id=company_id,
             period="Beta Scenario",
             billed_date=now[:10],
-            source_file=f"Material substitution scenario: {rec.label}",
+            source_file=f"Material substitution scenario: {label}",
             recorded_at=now,
             stated_percent_complete=100.0,
             total_gwp_kg_co2e_to_date=new_result.total_gwp_kg_co2e,
@@ -602,16 +710,49 @@ def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recomm
         )
     project_registry.mark_as_beta_twin(company_id, new_project_id, source_project_id=project_id)
 
+    return ProjectForkResult(
+        new_project_id=new_project_id,
+        new_project_name=new_project_name,
+        new_project_total_gwp_kg_co2e=new_result.total_gwp_kg_co2e,
+    )
+
+
+def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recommendation_id: str) -> BetaForkResult:
+    """The user-facing "Confirm Change" action in the Project Dashboard's
+    Material Alternatives (Beta) section, AND the Swap Sandbox's own
+    "Confirm as Beta Project" action -- deliberately NOT a variant of
+    confirm_recommendation() above, which is left completely untouched
+    (still does its original in-place overwrite, in case anything else
+    ever depends on it) and is simply no longer called by that UI.
+
+    Works identically for a "substitution_catalog" Recommendation (entry
+    looked up by substitution_id) and a "custom_swap" one from the Swap
+    Sandbox (entry is the Recommendation's own stored custom_entry) --
+    see _resolve_entry_for_recommendation(). Either way, the actual fork
+    happens in _fork_project_with_overlay() above; this function's own
+    job is just resolving which entry to fork with and updating this
+    Recommendation's own status afterward.
+    """
+    recs = _load_recommendations(company_id, project_id)
+    rec = next((r for r in recs if r.id == recommendation_id), None)
+    if rec is None:
+        raise ValueError(f"No recommendation '{recommendation_id}' found for project '{project_id}'")
+    if rec.status != "pending":
+        raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be confirmed.")
+
+    entry = _resolve_entry_for_recommendation(rec)
+    fork = _fork_project_with_overlay(company_id, project_id, entry, rec.user_pct, rec.label)
+
     rec.status = "confirmed_as_beta"
-    rec.decided_at = now
-    rec.beta_project_id = new_project_id
+    rec.decided_at = datetime.utcnow().isoformat()
+    rec.beta_project_id = fork.new_project_id
     _save_recommendations(company_id, project_id, recs)
 
     return BetaForkResult(
         recommendation=rec,
-        new_project_id=new_project_id,
-        new_project_name=new_project_name,
-        new_project_total_gwp_kg_co2e=new_result.total_gwp_kg_co2e,
+        new_project_id=fork.new_project_id,
+        new_project_name=fork.new_project_name,
+        new_project_total_gwp_kg_co2e=fork.new_project_total_gwp_kg_co2e,
     )
 
 

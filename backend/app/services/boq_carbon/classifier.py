@@ -138,6 +138,18 @@ _BLOCK_RE = re.compile(r"\b(aac\s*block|block\s*work|solid\s*block|concrete\s*bl
 # emission_factors.json's blockwork_aac '_reconciliation' note for why
 # AAC stays the sensible unqualified default).
 _BLOCK_DENSE_RE = re.compile(r"\b(solid\s*block|dense\s*block|concrete\s*block)\b", re.I)
+# Generic masonry fallback -- added for a real BOQ line that said only
+# "... Masonry Work ..." with no brick/block/AAC/dense keyword specific
+# enough for _BRICK_RE/_BLOCK_RE to catch, and so fell all the way through
+# to unclassified. Deliberately placed LAST in _ORDERED_RULES (see below)
+# so it can never steal a classification from the more specific brick/
+# block rules above it -- those are checked first and `break` on match,
+# so a line that says e.g. "Concrete Block Masonry Work" still correctly
+# resolves to blockwork_dense via _BLOCK_RE, never falls through to here.
+# This only catches a line that mentions masonry in some OTHER, less
+# specific way (stone masonry, generic "masonry work" with no material
+# keyword, etc.).
+_MASONRY_RE = re.compile(r"\bmasonry\b", re.I)
 # "plaster\w*" (not "plaster\b") deliberately -- confirmed via
 # diagnose_coverage_gaps.py against real Botanico/Ecopolitan BOQs that
 # the word-bounded "\bplaster\b" silently fails to match the extremely
@@ -312,6 +324,12 @@ CATEGORY_TILE_CERAMIC = "tile_ceramic"
 CATEGORY_NATURAL_STONE = "natural_stone"
 CATEGORY_ALUMINIUM = "aluminium"
 CATEGORY_UPVC = "upvc_window_door_frame"
+# Low-priority fallback -- see _MASONRY_RE's own comment above for why
+# this is last in _ORDERED_RULES, not grouped with CATEGORY_BRICK/
+# _BLOCK_FAMILY. Directly-areal factor (kgCO2e/m2, not per-kg +
+# density/thickness like brickwork/blockwork_aac/blockwork_dense) -- see
+# emission_factors.json's masonry entry and engine.py's compute_line_gwp.
+CATEGORY_MASONRY = "masonry"
 
 # Private matching sentinels -- never returned by classify_material()
 # itself, only used as _ORDERED_RULES keys so the "is this line in the
@@ -345,6 +363,9 @@ _ORDERED_RULES: list[tuple[str, re.Pattern]] = [
     (_ALU_FAMILY, _ALU_RE),
     (CATEGORY_GLASS, _GLASS_RE),
     (CATEGORY_STEEL_SECTION, _STEEL_SECTION_WEAK_RE),
+    # Absolute last: a generic "masonry" mention that none of the more
+    # specific rules above already caught. See _MASONRY_RE's comment.
+    (CATEGORY_MASONRY, _MASONRY_RE),
 ]
 
 

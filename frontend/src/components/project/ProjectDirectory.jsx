@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Building2, MapPin, Search, ArrowRight, Layers, FlaskConical, Trash2, AlertTriangle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import { aggregateCategories, CATEGORY_LABELS } from '../common/charts/MaterialBreakdownChart'
@@ -28,7 +29,8 @@ import { originLabel } from '../../utils/projectOrigin'
  * main grid.
  */
 export default function ProjectDirectory() {
-  const { projects, activeCompanyId, selectProject, navigate, deleteProject, isLoading: projectsLoading } = useProject()
+  const { projects, activeCompanyId, selectProject, deleteProject, isLoading: projectsLoading } = useProject()
+  const navigate = useNavigate()
 
   // Performance fix: this used to fire its own Promise.allSettled fan-out
   // of one getDashboard() call per baselined project (on top of the
@@ -139,7 +141,7 @@ export default function ProjectDirectory() {
 
   function openProject(projectId) {
     selectProject(projectId)
-    navigate('project-dashboard')
+    navigate(`/projects/${projectId}`)
   }
 
   function categoryLabel(category) {

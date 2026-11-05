@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, FileSpreadsheet, FileText, Lightbulb, AlertTriangle } from 'lucide-react'
+import { X, FileSpreadsheet, FileText, Lightbulb, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
 import { api } from '../../api/client'
 import StatCard from '../common/StatCard'
 import RadialGauge from '../common/RadialGauge'
@@ -73,6 +73,11 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
     api.getBoqCatalog().then((cat) => { if (!cancelled) setCatalog(cat) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
+
+  // UX refinement (Phase C, Part A): "i cant see which are those lines" --
+  // which reason bucket's row (if any) is expanded to show its matching
+  // line_items underneath. Null = all collapsed (the original behavior).
+  const [expandedReason, setExpandedReason] = useState(null)
 
   if (!job || !result) return null
 
@@ -238,19 +243,73 @@ export default function JobCalculationDashboard({ job, result, onClose }) {
         {/* Honesty audit -- what wasn't computed, and why */}
         {result.coverage?.excluded_by_reason?.length > 0 && (
           <div style={{ marginBottom: 22 }}>
-            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>What Wasn't Computed, and Why</h4>
+            <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>What Wasn't Computed, and Why</h4>
+            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 10 }}>Click a reason to see the actual lines behind it.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {result.coverage.excluded_by_reason.map((ex) => (
-                <div
-                  key={ex.reason}
-                  style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.78rem', padding: '8px 12px', background: 'rgba(var(--c-overlay),0.03)', borderRadius: 'var(--radius-sm)' }}
-                >
-                  <span style={{ color: 'var(--text-tertiary)' }}>{REASON_LABELS[ex.reason] || ex.reason}</span>
-                  <span style={{ color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                    {ex.line_item_count} line{ex.line_item_count === 1 ? '' : 's'} · ₹{ex.value_excluded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-              ))}
+              {result.coverage.excluded_by_reason.map((ex) => {
+                const isOpen = expandedReason === ex.reason
+                // Same cross-engine field-accessor pattern the Top
+                // Contributing Line Items table below already uses --
+                // reused, not reinvented. li.exclusion_reason is the one
+                // new per-line field this drill-down depends on (see
+                // engine.py/wo_carbon_engine.py).
+                const matchingLines = isOpen ? lineItems.filter((li) => li.exclusion_reason === ex.reason) : []
+                return (
+                  <div key={ex.reason} style={{ background: 'rgba(var(--c-overlay),0.03)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                    <button
+                      onClick={() => setExpandedReason(isOpen ? null : ex.reason)}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+                        fontSize: '0.78rem', padding: '8px 12px', width: '100%', background: 'none', border: 'none',
+                        cursor: 'pointer', textAlign: 'left', font: 'inherit', color: 'inherit',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)' }}>
+                        {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                        {REASON_LABELS[ex.reason] || ex.reason}
+                      </span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {ex.line_item_count} line{ex.line_item_count === 1 ? '' : 's'} · ₹{ex.value_excluded.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div style={{ maxHeight: 280, overflowY: 'auto', borderTop: '1px solid rgba(var(--c-overlay),0.06)' }}>
+                        {matchingLines.length === 0 ? (
+                          <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', padding: '10px 14px' }}>
+                            No matching lines found on this result (the summary count above may be stale -- try re-running this upload).
+                          </p>
+                        ) : (
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid rgba(var(--c-overlay),0.06)' }}>
+                                <th style={{ ...thStyle, fontSize: '0.62rem' }}>Description</th>
+                                <th style={{ ...thStyle, fontSize: '0.62rem' }}>Category</th>
+                                <th style={{ ...thStyleRight, fontSize: '0.62rem' }}>Qty</th>
+                                <th style={{ ...thStyle, fontSize: '0.62rem' }}>Why</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {matchingLines.map((li, idx) => {
+                                const description = li.enriched_description || li.description || li.code || `Row ${li.row ?? idx + 1}`
+                                const category = li.category || li.material_category || '—'
+                                const uom = li.uom || li.unit || ''
+                                return (
+                                  <tr key={idx} style={{ borderBottom: idx === matchingLines.length - 1 ? 'none' : '1px solid rgba(var(--c-overlay),0.04)' }}>
+                                    <td style={{ ...tdStyle, fontSize: '0.72rem' }}>{description}</td>
+                                    <td style={{ ...tdStyle, fontSize: '0.72rem', textTransform: 'capitalize' }}>{category.replace(/_/g, ' ')}</td>
+                                    <td style={{ ...tdStyleRight, fontSize: '0.72rem' }}>{li.qty != null ? li.qty.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'} {uom}</td>
+                                    <td style={{ ...tdStyle, fontSize: '0.7rem', color: 'var(--text-muted)' }}>{li.basis_note}</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

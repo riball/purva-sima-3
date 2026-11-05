@@ -1,11 +1,19 @@
 import React from 'react'
 import { ArrowRight, Calculator, LayoutGrid } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import blueprintVideo from '../../assets/video/vecteezy_architecture-blueprint-3d-illustration_72196420.mp4'
 import { useProject } from '../../context/ProjectContext'
 
-export default function LandingPage({ onNavigate }) {
+// Real app routing (Phase C, Part C): this is the one screen with a real
+// URL ("/") whose two buttons used to call an onNavigate(viewId) prop
+// handed down by App.jsx's old single-currentView state. Now a plain
+// react-router-dom useNavigate(), same as every other page in the app --
+// Portfolio Overview is the confirmed real home ("/portfolio"), not a
+// bare internal view id.
+export default function LandingPage() {
   const { selectProject } = useProject()
+  const navigate = useNavigate()
   return (
     <div className="landing-page" style={{
       height: '100vh',
@@ -78,7 +86,7 @@ export default function LandingPage({ onNavigate }) {
               // button for why this has to happen before navigating,
               // not just on the wizard's own internal button.
               selectProject(null)
-              onNavigate('conceptual-estimate')
+              navigate('/conceptual-estimate')
             }}
             className="btn-primary"
             style={{ padding: '14px 32px', fontSize: '1rem' }}
@@ -86,9 +94,9 @@ export default function LandingPage({ onNavigate }) {
             <Calculator size={20} />
             Calculate Your Carbon
           </button>
-          
-          <button 
-            onClick={() => onNavigate('overview')}
+
+          <button
+            onClick={() => navigate('/portfolio')}
             className="btn-secondary"
             style={{ padding: '14px 32px', fontSize: '1rem' }}
           >

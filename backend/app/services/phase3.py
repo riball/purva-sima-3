@@ -589,6 +589,23 @@ def baseline_from_boq_result(
         num_floors=num_floors,
         typology=typology,
         coverage=result.coverage,
+        # Fix: this was always None for a real boq/wo baseline (the
+        # Phase3Baseline docstring even documented it as deliberate --
+        # "gets its real per-bill category_breakdown from actual bills
+        # instead"), but that leaves a real gap for every project between
+        # being baselined and its first bill: the Project Dashboard's
+        # Section 2 (Hotspot Ranking) and Section 3 (Share by Material /
+        # Material Composition) had nothing to render and fell back to
+        # "Add a bill to see its material breakdown here" even though this
+        # exact by-category breakdown was already computed at upload time
+        # and shown on the BOQ Analysis page's own dashboard
+        # (JobDashboardPage.jsx's "Material-Wise Carbon Contribution"
+        # chart, same result.by_category). Mirrors the exact pattern
+        # bill_from_boq_result() below already uses for bills, and the one
+        # baseline_from_phase1_estimate() already uses for estimated
+        # baselines -- same CategoryTotal shape (category/gwp_kg_co2e/
+        # line_item_count/pct_of_total/...) both of those already persist.
+        material_breakdown=[c.model_dump() for c in result.by_category],
     )
 
 
@@ -617,6 +634,9 @@ def baseline_from_wo_result(
         num_floors=num_floors,
         typology=typology,
         coverage=result.coverage,
+        # Fix: see the matching comment in baseline_from_boq_result() just
+        # above -- same gap, same fix, for Work Order baselines.
+        material_breakdown=[c.model_dump() for c in result.by_category],
     )
 
 
