@@ -235,7 +235,14 @@ def _line_identity(li) -> object:
     object is used instead -- safe here specifically because both passes
     iterate the SAME list of objects within one function call, never a
     reloaded/re-deserialized copy."""
-    return li.row if hasattr(li, "row") else id(li)
+    # Multi-sheet / multi-file BOQ results repeat the same `row` number on
+    # every sheet, so a BOQ line is identified by (file, sheet, row) -- the
+    # same key engine.line_key() gives. Results saved before multi-sheet
+    # support have source_file/source_sheet None, which degrades to the old
+    # row-only identity.
+    if hasattr(li, "row"):
+        return (getattr(li, "source_file", None), getattr(li, "source_sheet", None), li.row)
+    return id(li)
 
 
 def _apply_overlay_to_result(entry: dict, user_pct: float, result: AnyCarbonResult) -> AnyCarbonResult:
@@ -845,4 +852,4 @@ def get_current_state_summary(company_id: str, project_id: str) -> CurrentStateS
         total_delta_pct=((baseline.total_gwp_kg_co2e - current_total) / baseline.total_gwp_kg_co2e * 100) if baseline.total_gwp_kg_co2e else 0.0,
         confirmed_change_count=sum(1 for r in recs if r.status == "confirmed"),
         pending_recommendation_count=sum(1 for r in recs if r.status == "pending"),
-    )
+    )

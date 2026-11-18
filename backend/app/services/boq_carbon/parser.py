@@ -117,6 +117,12 @@ class BoqLineItem:
     qty: Optional[float]
     rate: Optional[float]
     amount: Optional[float]
+    # Which workbook / sheet this row came from. Row numbers alone repeat
+    # across sheets (every sheet has a "row 21"), so any code that needs to
+    # tell two lines apart in a multi-sheet / multi-file result must key on
+    # (source_file, source_sheet, row), never on `row` by itself.
+    source_file: Optional[str] = None
+    source_sheet: Optional[str] = None
 
 
 def is_payment_split_row(desc) -> bool:
@@ -156,20 +162,26 @@ def _cell(row: tuple, col_idx: int):
     return row[col_idx] if col_idx is not None and col_idx < len(row) else None
 
 
-def find_header_band(rows: list[tuple], max_scan: int = 15) -> tuple[int, int]:
-    """Locates the header band by row INDEX into `rows` (0-indexed).
-    Returns (anchor_idx, band_end_idx); data starts at band_end_idx + 1.
-    """
-    n_rows = len(rows)
-    anchor = None
-    for idx in range(min(max_scan, n_rows)):
+def _find_header_anchor(rows: list[tuple], max_scan: int = 15) -> Optional[int]:
+    """Index of the first row (within the first `max_scan` rows) that has
+    both an item-number heading and a description heading, or None when
+    the sheet has no such row -- i.e. it isn't a BOQ table at all."""
+    for idx in range(min(max_scan, len(rows))):
         row = rows[idx]
         joined = " ".join(str(v) for v in row if v).lower()
         has_item = any(k in joined for k in _HEADER_KEYWORDS["item_no"])
         has_desc = "description" in joined
         if has_item and has_desc:
-            anchor = idx
-            break
+            return idx
+    return None
+
+
+def find_header_band(rows: list[tuple], max_scan: int = 15) -> tuple[int, int]:
+    """Locates the header band by row INDEX into `rows` (0-indexed).
+    Returns (anchor_idx, band_end_idx); data starts at band_end_idx + 1.
+    """
+    n_rows = len(rows)
+    anchor = _find_header_anchor(rows, max_scan)
     if anchor is None:
         anchor = 2  # fallback (0-indexed row 2 == the 3rd row), matches the most common observed layout
 
@@ -336,7 +348,7 @@ def _next_real_row(rows: list[tuple], from_idx: int, col_desc: int) -> Optional[
     return None
 
 
-def extract_billable_items(path: str, sheet_name: str) -> list[BoqLineItem]:
+def extract_billable_items(path: str, sheet_name: str, source_file: Optional[str] = None) -> list[BoqLineItem]:
     wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
     try:
         ws = wb[sheet_name]
@@ -488,6 +500,8 @@ def extract_billable_items(path: str, sheet_name: str) -> list[BoqLineItem]:
                 qty=float(qty) if _is_number(qty) else None,
                 rate=float(rate) if _is_number(rate) else None,
                 amount=float(amount) if _is_number(amount) else None,
+                source_file=source_file,
+                source_sheet=sheet_name,
             )
         )
 

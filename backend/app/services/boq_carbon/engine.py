@@ -42,7 +42,7 @@ that module's docstring.
 from __future__ import annotations
 
 import re
-from typing import Literal, Optional
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -101,6 +101,7 @@ ALL_MATERIAL_CATEGORIES: tuple[str, ...] = (
     CATEGORY_TIMBER,
 )
 from app.services.boq_carbon.parser import extract_billable_items
+from app.services.boq_carbon.sheets import default_sheets, detect_overlaps
 from app.services.emission_factors import get_factor
 from app.services.ice_factors import get_concrete_factor_per_m3, get_steel_rebar_factor_per_kg
 
@@ -194,6 +195,27 @@ class LineItemResult(BaseModel):
     # calculate_from_boq's coverage-row builder.
     rate: Optional[float] = None
     amount: Optional[float] = None
+    # Which workbook / sheet this line came from. `row` alone repeats across
+    # sheets, so identify a line by (source_file, source_sheet, row) -- see
+    # line_key() below. None only on results saved before multi-sheet support.
+    source_file: Optional[str] = None
+    source_sheet: Optional[str] = None
+
+
+def line_key(li) -> tuple:
+    """A line's identity inside a (possibly multi-sheet, multi-file) result."""
+    return (getattr(li, "source_file", None), getattr(li, "source_sheet", None), li.row)
+
+
+class SourceSummary(BaseModel):
+    """One row of the per-sheet breakdown shown when a result combines several
+    sheets and/or files: what each contributed to the combined total."""
+    source_file: str
+    sheet_name: str
+    n_lines_total: int
+    n_lines_computed: int
+    total_gwp_kg_co2e: float
+    total_value: float
 
 
 class CategoryTotal(BaseModel):
@@ -225,6 +247,12 @@ class CategoryTotal(BaseModel):
 class BoqCarbonResult(BaseModel):
     source_file: str
     sheet_name: str
+    # One entry per (file, sheet) that fed this result -- a single entry for
+    # an ordinary one-sheet BOQ, several for a multi-sheet / multi-file one.
+    sources: list[SourceSummary] = []
+    # Plain-language cautions (e.g. two selected sheets look like the same
+    # scope). Never blocks the calculation; shown next to the result.
+    warnings: list[str] = []
     n_lines_total: int
     n_lines_classified: int
     n_lines_computed: int  # classified AND successfully converted to a GWP value
@@ -532,19 +560,51 @@ def _classify_boq_exclusion_reason(li: LineItemResult) -> str:
     return coverage_service.REASON_UNHANDLED_UNIT
 
 
+class BoqSource(BaseModel):
+    """One uploaded workbook and the sheets of it to calculate. `sheets=None`
+    means "every sheet that is a real BOQ table" (see sheets.default_sheets)."""
+    file_path: str
+    display_name: str
+    sheets: Optional[list[str]] = None
+
+
 def calculate_from_boq(
     file_path: str,
-    sheet_name: str,
+    sheet_name: Union[str, list[str], None] = None,
     floor_area_sqm: Optional[float] = None,
     floor_area_basis: Optional[FloorAreaBasis] = None,
 ) -> BoqCarbonResult:
     """Extracts, classifies, and carbon-costs every billable line item in
-    one BOQ sheet. floor_area_sqm/floor_area_basis are optional (a totals-
-    only result is still useful without them) but if you pass one you
-    should pass both -- a bare number with no basis is exactly the
-    ambiguity that caused a real 8.5x mismatch on a real project, see the
-    module docstring.
+    one workbook. `sheet_name` may be one sheet, a list of sheets, or None
+    -- None (the default) means EVERY sheet that is a real BOQ table, not
+    just the first one (a workbook with Structure + Architecture sheets
+    used to have its second sheet silently dropped).
+
+    floor_area_sqm/floor_area_basis are optional (a totals-only result is
+    still useful without them) but if you pass one you should pass both --
+    a bare number with no basis is exactly the ambiguity that caused a
+    real 8.5x mismatch on a real project, see the module docstring.
     """
+    sheets = None if sheet_name is None else ([sheet_name] if isinstance(sheet_name, str) else list(sheet_name))
+    display = file_path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+    return calculate_from_boq_sources(
+        [BoqSource(file_path=file_path, display_name=display, sheets=sheets)],
+        floor_area_sqm=floor_area_sqm,
+        floor_area_basis=floor_area_basis,
+    )
+
+
+def calculate_from_boq_sources(
+    sources: list[BoqSource],
+    floor_area_sqm: Optional[float] = None,
+    floor_area_basis: Optional[FloorAreaBasis] = None,
+) -> BoqCarbonResult:
+    """The same calculation as calculate_from_boq, over several workbooks
+    and/or several sheets of each, combined into ONE result: one total, one
+    category breakdown, one coverage figure, plus a per-sheet breakdown
+    (`sources`) and overlap warnings (`warnings`)."""
+    if not sources:
+        raise ValueError("No BOQ file given.")
     if floor_area_sqm is not None and floor_area_basis is None:
         raise ValueError(
             "floor_area_basis is required whenever floor_area_sqm is given -- "
@@ -552,7 +612,28 @@ def calculate_from_boq(
             "without its definition caused a real 8.5x mismatch on a real project."
         )
 
-    items = extract_billable_items(file_path, sheet_name)
+    items = []
+    groups = []  # for overlap detection: one per (file, sheet)
+    for src in sources:
+        sheets = src.sheets if src.sheets is not None else default_sheets(src.file_path)
+        for sh in sheets:
+            try:
+                sheet_items = extract_billable_items(src.file_path, sh, source_file=src.display_name)
+            except KeyError:
+                raise ValueError(f"Sheet '{sh}' was not found in '{src.display_name}'.")
+            items.extend(sheet_items)
+            groups.append({"label": f"{src.display_name} > {sh}", "file": src.display_name, "sheet": sh, "items": sheet_items})
+    warnings = detect_overlaps(groups) if len(groups) > 1 else []
+    if not items:
+        raise ValueError("The selected sheet(s) contain no billable BOQ lines.")
+
+    multi = len(groups) > 1
+    file_names = list(dict.fromkeys(src.display_name for src in sources))
+    combined_source_file = " + ".join(file_names)
+    if multi:
+        combined_sheet_name = ", ".join((g["sheet"] if len(file_names) == 1 else g["label"]) for g in groups)
+    else:
+        combined_sheet_name = groups[0]["sheet"]
 
     line_results: list[LineItemResult] = []
     category_totals: dict[str, dict] = {}
@@ -574,6 +655,8 @@ def calculate_from_boq(
                 basis_note=note,
                 rate=item.rate,
                 amount=item.amount,
+                source_file=item.source_file,
+                source_sheet=item.source_sheet,
             )
         )
 
@@ -656,9 +739,26 @@ def calculate_from_boq(
         for r in line_results
     ]
 
+    source_summaries = []
+    for g in groups:
+        f_name, sh_name = g["file"], g["sheet"]
+        rows_here = [r for r in line_results if r.source_file == f_name and r.source_sheet == sh_name]
+        source_summaries.append(
+            SourceSummary(
+                source_file=f_name,
+                sheet_name=sh_name,
+                n_lines_total=len(rows_here),
+                n_lines_computed=sum(1 for r in rows_here if r.gwp_kg_co2e is not None),
+                total_gwp_kg_co2e=sum(r.gwp_kg_co2e for r in rows_here if r.gwp_kg_co2e is not None),
+                total_value=sum(_row_value(r) for r in rows_here),
+            )
+        )
+
     result = BoqCarbonResult(
-        source_file=file_path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1],
-        sheet_name=sheet_name,
+        source_file=combined_source_file,
+        sheet_name=combined_sheet_name,
+        sources=source_summaries,
+        warnings=warnings,
         n_lines_total=len(line_results),
         n_lines_classified=n_classified,
         n_lines_computed=n_computed,

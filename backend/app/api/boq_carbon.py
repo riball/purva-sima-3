@@ -90,8 +90,8 @@ async def calculate_boq_carbon(
 
     try:
         resolved_sheet = sheet_name
-        if resolved_sheet is None:
-            resolved_sheet, _ = extract_from_first_primary_sheet(str(tmp_path), SUPPLEMENTARY_SHEET_PATTERNS)
+        # resolved_sheet stays None when the caller named no sheet: calculate_from_boq
+        # then calculates EVERY BOQ sheet in the workbook, not just the first one.
 
         result = calculate_from_boq(
             str(tmp_path),

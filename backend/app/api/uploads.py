@@ -21,6 +21,7 @@ baseline via `POST /uploads/jobs/{job_id}/use-as-baseline`.
 
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -30,6 +31,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from pydantic import BaseModel
 
 from app.services import company_store, job_store, upload_jobs
+from app.services.boq_carbon import sheets as boq_sheets
 from app.services.boq_carbon.engine import FloorAreaBasis
 from app.services.phase3 import Phase3Baseline
 
@@ -46,6 +48,83 @@ def _save_upload_to_tmp(upload: UploadFile, suffix: str) -> str:
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         shutil.copyfileobj(upload.file, tmp)
         return tmp.name
+
+
+def _unique_display_names(filenames: list[str]) -> list[str]:
+    """Two uploaded files may share a name (e.g. "BOQ.xlsx" from two
+    folders); the per-sheet breakdown and overlap warnings identify a
+    sheet by file name, so repeats get " (2)", " (3)"... appended."""
+    seen: dict[str, int] = {}
+    out = []
+    for name in filenames:
+        seen[name] = seen.get(name, 0) + 1
+        out.append(name if seen[name] == 1 else f"{Path(name).stem} ({seen[name]}){Path(name).suffix}")
+    return out
+
+
+def _parse_sheet_selection(raw: Optional[str], n_files: int) -> list[Optional[list[str]]]:
+    """`raw` is a JSON list aligned with the uploaded BOQ files, each entry
+    the list of sheet names to calculate for that file (null = every BOQ
+    sheet; [] = none of this file's sheets). Missing = every BOQ sheet of
+    every file."""
+    if not raw:
+        return [None] * n_files
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="boq_sheets must be a JSON list of sheet-name lists, one per BOQ file.")
+    if not isinstance(data, list) or len(data) != n_files or any(e is not None and not isinstance(e, list) for e in data):
+        raise HTTPException(status_code=400, detail="boq_sheets must be a JSON list with one entry (a list of sheet names, or null) per BOQ file.")
+    return data  # null = every BOQ sheet; [] = deliberately no sheet of this file
+
+
+def _check_boq_names(files: list[UploadFile]) -> None:
+    for f in files:
+        if not f.filename or not f.filename.lower().endswith((".xlsx", ".xls")):
+            raise HTTPException(status_code=400, detail=f"'{f.filename}' is not an .xlsx or .xls file")
+
+
+@router.post("/boq/inspect")
+async def inspect_boq_files(
+    boq_files: list[UploadFile] = File(...),
+    boq_sheets_selected: Optional[str] = Form(None),
+) -> dict:
+    """Lists, for each uploaded BOQ workbook, every sheet with its line count
+    and value, whether it would be calculated by default, and -- if not --
+    why (rate list, summary sheet, no BOQ header...). Also returns overlap
+    warnings across the sheets that are (or, when `boq_sheets_selected` is
+    given, are chosen to be) included, e.g. a 'Combined' sheet that is the
+    other sheets merged. Calculates nothing and stores nothing; the temp
+    copies are deleted before returning.
+    """
+    _check_boq_names(boq_files)
+    names = _unique_display_names([f.filename for f in boq_files])
+    selection = _parse_sheet_selection(boq_sheets_selected, len(boq_files))
+    tmp_paths: list[str] = []
+    out_files: list[dict] = []
+    groups: list[dict] = []
+    try:
+        for f, name, chosen in zip(boq_files, names, selection):
+            tmp = _save_upload_to_tmp(f, ".xlsx")
+            tmp_paths.append(tmp)
+            try:
+                infos = boq_sheets.inspect_workbook(tmp)
+            except Exception as e:  # noqa: BLE001 -- a corrupt workbook is reported per file, not a 500
+                out_files.append({"filename": name, "error": f"Could not read this workbook: {e}", "sheets": []})
+                continue
+            out_files.append({"filename": name, "sheets": [i.model_dump() for i in infos]})
+            use = chosen if chosen is not None else [i.name for i in infos if i.selected_by_default]
+            for sh in use:
+                if any(i.name == sh for i in infos):
+                    groups.append({"label": f"{name} > {sh}", "items": boq_sheets.extract_billable_items(tmp, sh, source_file=name)})
+        warnings = boq_sheets.detect_overlaps(groups) if len(groups) > 1 else []
+    finally:
+        for p in tmp_paths:
+            try:
+                Path(p).unlink(missing_ok=True)
+            except OSError:
+                pass
+    return {"files": out_files, "warnings": warnings}
 
 
 @router.post("/boq/jobs")
@@ -110,6 +189,8 @@ async def create_wo_job(
 async def create_combined_jobs(
     background_tasks: BackgroundTasks,
     boq_file: Optional[UploadFile] = File(None),
+    boq_files: Optional[list[UploadFile]] = File(None),
+    boq_sheets: Optional[str] = Form(None),
     wo_file: Optional[UploadFile] = File(None),
     floor_area_sqm: Optional[float] = Form(None),
     floor_area_basis: Optional[FloorAreaBasis] = Form(None),
@@ -121,20 +202,35 @@ async def create_combined_jobs(
     merged); the response carries whichever job id(s) were actually
     started, so a frontend that submitted only one file still gets a
     normal single-job response shape.
+
+    BOQ side: send `boq_file` (one workbook) or `boq_files` (one or more).
+    All BOQ workbooks sent together are calculated as ONE combined BOQ job
+    -- one total, with a per-sheet breakdown -- and every BOQ sheet of each
+    workbook is included unless `boq_sheets` (a JSON list aligned with the
+    files, each entry the sheet names to use or null for all) says
+    otherwise. The Work Order stays its own independent job, as before.
     """
-    if boq_file is None and wo_file is None:
-        raise HTTPException(status_code=400, detail="Provide at least one of boq_file or wo_file.")
+    all_boq = ([boq_file] if boq_file is not None else []) + [f for f in (boq_files or []) if f is not None and f.filename]
+    if not all_boq and wo_file is None:
+        raise HTTPException(status_code=400, detail="Provide at least one BOQ file or a work order (wo_file).")
 
     response: dict = {}
 
-    if boq_file is not None:
-        if not boq_file.filename or not boq_file.filename.lower().endswith((".xlsx", ".xls")):
-            raise HTTPException(status_code=400, detail="boq_file must be an .xlsx or .xls file")
-        tmp_path = _save_upload_to_tmp(boq_file, ".xlsx")
-        boq_job = job_store.create_job(company_id, "boq", boq_file.filename)
+    if all_boq:
+        _check_boq_names(all_boq)
+        selection = _parse_sheet_selection(boq_sheets, len(all_boq))
+        for f, chosen in zip(all_boq, selection):
+            if chosen is not None and len(chosen) == 0:
+                raise HTTPException(status_code=400, detail=f"No sheet is selected for '{f.filename}' -- select at least one sheet, or leave that file out.")
+        names = _unique_display_names([f.filename for f in all_boq])
+        sources = [
+            {"tmp_path": _save_upload_to_tmp(f, ".xlsx"), "filename": name, "sheets": chosen}
+            for f, name, chosen in zip(all_boq, names, selection)
+        ]
+        label = names[0] if len(names) == 1 else f"{names[0]} + {len(names) - 1} more"
+        boq_job = job_store.create_job(company_id, "boq", label)
         background_tasks.add_task(
-            upload_jobs.run_boq_job, company_id, boq_job.job_id, tmp_path, boq_file.filename,
-            None, floor_area_sqm, floor_area_basis, False, None, None, None,
+            upload_jobs.run_boq_multi_job, company_id, boq_job.job_id, sources, floor_area_sqm, floor_area_basis,
         )
         response["boq_job_id"] = boq_job.job_id
 

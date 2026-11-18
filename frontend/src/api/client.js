@@ -204,13 +204,31 @@ export const api = {
   // but not both.
   uploadCombined: async (files, options = {}) => {
     const formData = new FormData()
-    if (files.boqFile) formData.append('boq_file', files.boqFile)
+    // One or more BOQ workbooks are sent together and calculated as ONE
+    // combined BOQ. files.boqSheets (optional) is a list aligned with
+    // files.boqFiles: each entry the sheet names to include for that file
+    // (omit / empty = every BOQ sheet of it).
+    const boqFiles = files.boqFiles || (files.boqFile ? [files.boqFile] : [])
+    boqFiles.forEach((f) => formData.append('boq_files', f))
+    if (boqFiles.length > 0 && files.boqSheets) formData.append('boq_sheets', JSON.stringify(files.boqSheets))
     if (files.woFile) formData.append('wo_file', files.woFile)
     if (options.floorAreaSqm) formData.append('floor_area_sqm', options.floorAreaSqm)
     if (options.floorAreaBasis) formData.append('floor_area_basis', options.floorAreaBasis)
     formData.append('company_id', options.companyId || 'provident')
 
     const res = await fetch(`${API_BASE}/uploads/combined`, { method: 'POST', body: formData })
+    return handleResponse(res)
+  },
+
+  // Lists every sheet of each BOQ workbook (line count, value, whether it
+  // would be calculated by default and, if not, why) plus overlap warnings
+  // across the chosen sheets. `selectedSheets` is aligned with `files`.
+  // Calculates and stores nothing.
+  inspectBoqFiles: async (files, selectedSheets) => {
+    const formData = new FormData()
+    files.forEach((f) => formData.append('boq_files', f))
+    if (selectedSheets) formData.append('boq_sheets_selected', JSON.stringify(selectedSheets))
+    const res = await fetch(`${API_BASE}/uploads/boq/inspect`, { method: 'POST', body: formData })
     return handleResponse(res)
   },
 

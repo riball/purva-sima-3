@@ -1,0 +1,848 @@
+"""Workstream 14: Phase 4 -- confirm, recalculate, audit.
+
+Builds exactly the shape the roadmap's own "Phase 4 design sketch"
+specified, and nothing more:
+
+  1. Recommendation object. Whatever proposes a change -- for this pass,
+     the substitution catalog Workstream 08 already built (the same one
+     app/api/boq_carbon_substitute.py exposes for a one-off, stateless
+     Phase 2 calculation) -- produces one common shape: source, the
+     proposed change, and an ALREADY-COMPUTED delta. That delta is never
+     estimated here: propose_recommendation() below calls straight into
+     app.services.boq_carbon.substitution_engine's own real-recompute
+     helpers (_lines_affected_by, _recompute_line_at_substitute) -- the
+     exact functions the stateless Phase 2 substitution endpoint uses --
+     rather than inventing a second calculation path. "No new
+     calculation logic, just a new state to feed the old functions" is
+     the roadmap's own phrase for this, and it's followed literally.
+
+  2. A mutable overlay, not a second BOQ format. A confirmed
+     recommendation is applied to the CURRENT state of the project's
+     line items (app.services.phase3.load_source_result /
+     save_source_result -- see that module's docstring for why this is
+     a separate, mutable file from the immutable phase3_baseline.json)
+     using the identical per-line blend math substitution_engine.py's
+     apply_substitution() already uses for its aggregate SubstitutionResult.
+     The difference here is that _apply_overlay_to_result() below carries
+     that math through to every affected LINE ITEM, not just the total,
+     so the result can be persisted as a new state rather than reported
+     once and discarded.
+
+  3. Audit trail by construction. Every CONFIRMED change appends one
+     entry to phase4_audit_log.json -- source, timestamp, before/after
+     totals -- and that file is only ever appended to, never rewritten.
+     A rejected recommendation writes nothing there, because nothing
+     about the project's numbers changed.
+
+Deliberate scope cuts, disclosed rather than silently assumed:
+
+  - BOQ- and Work-Order-sourced baselines are both supported (closed the
+    gap this docstring used to disclose: app/api/phase3.py's
+    record_baseline now calls save_source_result on BOTH the 'boq' and
+    'wo' paths, and substitution_engine.py's _lines_affected_by /
+    _recompute_line_at_substitute dispatch on the line item's real type
+    to read WoLineItemResult's material_category/unit where BOQ reads
+    category/uom). Cement-blend-specific catalog entries (base_cement_type)
+    still only ever match BOQ lines -- WO line items genuinely carry no
+    cement-grade granularity, so those correctly report "0 affected line
+    items" for a WO project rather than guessing. phase1_estimate-sourced
+    projects remain unsupported (no structured line items exist at all
+    for an estimate); propose_recommendation() raises a clear ValueError
+    for those rather than silently doing nothing.
+  - Carbon only, not cost. A confirmed overlay updates gwp_kg_co2e,
+    total_gwp_kg_co2e, and by_category -- it does NOT re-estimate
+    total_value/rate/amount for the substituted material, since that's a
+    real new pricing lookup this workstream doesn't build. Cost stays as
+    originally priced; only the carbon accounting reflects the change.
+"""
+
+from __future__ import annotations
+
+import json
+import uuid
+from datetime import datetime
+from typing import Literal, Optional
+
+from pydantic import BaseModel
+
+from app.services import company_store, phase3
+from app.services.boq_carbon import substitution_engine, swap_sandbox
+from app.services.boq_carbon.engine import BoqCarbonResult, CategoryTotal, SQM_TO_SQFT
+from app.services.boq_carbon.substitution_engine import AnyCarbonResult, _line_category
+from app.services.supplier_catalog import get_entry as get_substitution, load_catalog
+from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, WoCategoryTotal
+
+# "custom_swap" (added for the Material Swap Sandbox -- see
+# app.services.boq_carbon.swap_sandbox's own module docstring): a
+# Recommendation sourced from a free-text sandbox request instead of the
+# fixed substitution_catalog.json. It carries its own synthesized
+# `custom_entry` dict (see Recommendation below) rather than a
+# substitution_id, since there's no catalog row to reference -- but it's
+# otherwise a real Recommendation, stored/listed/confirmed/rejected
+# through the exact same functions as a catalog-sourced one.
+RecommendationSource = Literal["substitution_catalog", "custom_swap"]
+# "confirmed_as_beta" (added alongside confirm_recommendation_as_beta_twin()
+# below): distinct from "confirmed" on purpose -- a plain "confirmed"
+# recommendation overwrote THIS project's own current state
+# (confirm_recommendation(), unchanged, still does exactly that); a
+# "confirmed_as_beta" one never touched this project at all, it only
+# forked a new one (see beta_project_id below). Collapsing both into one
+# "confirmed" status would make a Beta-forked recommendation look like
+# it mutated the project it's still attached to, when it didn't.
+RecommendationStatus = Literal["pending", "confirmed", "rejected", "confirmed_as_beta"]
+
+
+class Recommendation(BaseModel):
+    id: str
+    project_id: str
+    company_id: str
+    source: RecommendationSource
+    # None only for source == "custom_swap" -- there's no catalog row to
+    # reference, see custom_entry below.
+    substitution_id: Optional[str] = None
+    # Set only for source == "custom_swap" -- the actual entry dict
+    # swap_sandbox.resolve_intent_to_entry() synthesized, in the exact
+    # shape substitution_engine's _lines_affected_by/
+    # _recompute_line_at_substitute already consume. Stored here (not
+    # re-parsed from the original question) so confirming/forking later
+    # replays the EXACT same entry that was evaluated, not a fresh
+    # re-parse that could theoretically land on a different combination.
+    custom_entry: Optional[dict] = None
+    # Set only for source == "custom_swap" -- the full disclosure/advisory
+    # text swap_sandbox.evaluate_custom_swap() produced, carried onto the
+    # stored Recommendation (not just its numbers) so the Swap Sandbox's
+    # history still shows the complete original evaluation -- snap-to-
+    # nearest-real-option disclosures included -- after a page reload,
+    # not only right after the request was made.
+    disclosures: list[str] = []
+    advisory: Optional[swap_sandbox.SwapAdvisory] = None
+    label: str
+    user_pct: float
+    description: str
+    reasoning: str
+    requires_engineering_review: bool
+    affected_line_item_count: int
+    carbon_kg_before: float
+    carbon_kg_after: float
+    delta_kg: float
+    delta_pct: float
+    status: RecommendationStatus
+    created_at: str
+    decided_at: Optional[str] = None
+    # Set only when status == "confirmed_as_beta" -- the new project this
+    # recommendation was forked into, so the UI can render "-> View Beta
+    # Project" instead of looking un-actioned.
+    beta_project_id: Optional[str] = None
+
+
+class AuditLogEntry(BaseModel):
+    id: str
+    recommendation_id: str
+    source: RecommendationSource
+    substitution_id: Optional[str] = None  # None for a custom_swap-sourced entry, see Recommendation above
+    label: str
+    user_pct: float
+    description: str
+    total_gwp_kg_co2e_before: float
+    total_gwp_kg_co2e_after: float
+    delta_kg: float
+    delta_pct: float
+    confirmed_at: str
+
+
+class ConfirmResult(BaseModel):
+    recommendation: Recommendation
+    audit_entry: AuditLogEntry
+    project_total_gwp_kg_co2e_before: float
+    project_total_gwp_kg_co2e_after: float
+
+
+class BetaForkResult(BaseModel):
+    """Returned by confirm_recommendation_as_beta_twin() below -- no
+    audit_entry (unlike ConfirmResult), because the source project's own
+    audit log is never touched by a Beta fork (see that function's own
+    docstring for why)."""
+
+    recommendation: Recommendation
+    new_project_id: str
+    new_project_name: str
+    new_project_total_gwp_kg_co2e: float
+
+
+class CatalogPreviewEntry(BaseModel):
+    """"I want to be able to see all the possible suggested material
+    swaps" -- one entry per substitution_catalog.json row, evaluated
+    against this project's CURRENT state (not persisted as a
+    Recommendation) at that entry's own catalog `max_recommended_pct`, so
+    the Alternatives grid can show every swap's real numbers at once
+    instead of the user picking one at a time first. Reuses
+    substitution_engine.apply_substitution() -- the exact same
+    real-recompute path propose_recommendation() below already calls --
+    so this is genuinely the same computation, just not written to disk.
+
+    `applicable=False` (zero affected line items -- e.g. a cement-blend
+    entry against a Work-Order baseline, which carries no cement-grade
+    data at all) is reported honestly rather than as a 0% "swap," per
+    this project's standing "never fabricate a number" rule. Cost is
+    deliberately left unestimated (`cost_delta_pct=None`) for the same
+    reason this module's own docstring already discloses for a confirmed
+    overlay: no real re-pricing path exists here, so inventing a cost
+    delta would be worse than omitting one."""
+
+    substitution_id: str
+    label: str
+    base_category: str
+    evaluated_pct: float
+    applicable: bool
+    affected_line_item_count: int
+    original_gwp_kg_co2e: float
+    new_gwp_kg_co2e: float
+    savings_kg_co2e: float
+    savings_pct_of_affected_lines: float
+    savings_pct_of_total: float
+    status: Literal["verified_suitable", "technical_review_required"]
+    reasoning: str
+    structural_caveat: str
+    evidence_tier: str
+    source: str
+    requires_supplier_match: Optional[str] = None
+    cost_delta_pct: Optional[float] = None
+
+
+class CurrentStateSummary(BaseModel):
+    project_id: str
+    company_id: str
+    baseline_total_gwp_kg_co2e: float
+    current_total_gwp_kg_co2e: float
+    total_delta_kg: float
+    total_delta_pct: float
+    confirmed_change_count: int
+    pending_recommendation_count: int
+
+
+# ---------------------------------------------------------------------------
+# The real-recompute overlay -- reuses substitution_engine.py's own
+# per-line math, carried through to every affected line item instead of
+# just the aggregate.
+# ---------------------------------------------------------------------------
+
+
+def _line_identity(li) -> object:
+    """A stable per-call identity for matching a line item across the
+    "which lines does this catalog entry affect" pass and the "rewrite
+    those lines" pass below. BOQ's LineItemResult carries a real `row`
+    index; WoLineItemResult has no such field, so id() of the in-memory
+    object is used instead -- safe here specifically because both passes
+    iterate the SAME list of objects within one function call, never a
+    reloaded/re-deserialized copy."""
+    return li.row if hasattr(li, "row") else id(li)
+
+
+def _apply_overlay_to_result(entry: dict, user_pct: float, result: AnyCarbonResult) -> AnyCarbonResult:
+    matched_ids = {_line_identity(li) for li in substitution_engine._lines_affected_by(entry, result)}
+    frac = max(user_pct, 0.0) / 100.0
+    is_wo = isinstance(result, WoCarbonResult)
+
+    new_line_items = []
+    for li in result.line_items:
+        if _line_identity(li) not in matched_ids or li.gwp_kg_co2e is None:
+            new_line_items.append(li)
+            continue
+        substitute_gwp = substitution_engine._recompute_line_at_substitute(entry, li)
+        if substitute_gwp is None:
+            # Same fallback substitution_engine.apply_substitution() uses:
+            # this line's unit isn't one the substitute material's own
+            # conversion path handles -- keep it at its original value
+            # rather than silently zeroing it out.
+            new_line_items.append(li)
+            continue
+        blended = li.gwp_kg_co2e * (1 - frac) + substitute_gwp * frac
+        new_line_items.append(li.model_copy(update={"gwp_kg_co2e": blended}))
+
+    new_total = sum(li.gwp_kg_co2e for li in new_line_items if li.gwp_kg_co2e is not None)
+
+    by_cat: dict[str, list] = {}
+    for li in new_line_items:
+        cat = _line_category(li)
+        if cat is None or li.gwp_kg_co2e is None:
+            continue
+        by_cat.setdefault(cat, []).append(li)
+
+    if is_wo:
+        new_by_category = [
+            WoCategoryTotal(
+                category=cat,
+                gwp_kg_co2e=sum(x.gwp_kg_co2e for x in items),
+                line_item_count=len(items),
+                # Cost is never touched by a substitution (this module's
+                # own "carbon only, not cost" scope note) -- each line's
+                # unchanged `amount` is simply re-summed per category,
+                # legitimate reuse of already-present data, not a new
+                # computation.
+                wo_amount_covered=sum(x.amount for x in items),
+                pct_of_total=(sum(x.gwp_kg_co2e for x in items) / new_total * 100) if new_total else 0.0,
+            )
+            for cat, items in sorted(by_cat.items())
+        ]
+    else:
+        new_by_category = [
+            CategoryTotal(
+                category=cat,
+                gwp_kg_co2e=sum(x.gwp_kg_co2e for x in items),
+                line_item_count=len(items),
+                pct_of_total=(sum(x.gwp_kg_co2e for x in items) / new_total * 100) if new_total else 0.0,
+            )
+            for cat, items in sorted(by_cat.items())
+        ]
+
+    return result.model_copy(
+        update={
+            "line_items": new_line_items,
+            "total_gwp_kg_co2e": new_total,
+            "total_gwp_tonnes_co2e": new_total / 1000.0,
+            "by_category": new_by_category,
+            "gwp_per_sqm": (new_total / result.floor_area_sqm) if result.floor_area_sqm else None,
+            "gwp_per_sqft": (new_total / result.floor_area_sqm / SQM_TO_SQFT) if result.floor_area_sqm else None,
+        }
+    )
+
+
+def _load_current_state(company_id: str, project_id: str) -> AnyCarbonResult:
+    current = phase3.load_source_result(company_id, project_id)
+    if current is None:
+        baseline = phase3.load_baseline(company_id, project_id)
+        if baseline is None:
+            raise ValueError(f"Project '{project_id}' has no Phase 3 baseline recorded yet.")
+        if baseline.source_type not in ("boq", "wo"):
+            raise ValueError(
+                f"Project '{project_id}'s baseline is source_type='{baseline.source_type}' -- Phase 4's "
+                "confirm/recalculate/audit flow only supports BOQ- or Work-Order-sourced baselines (see "
+                "phase4.py's module docstring). Record a BOQ or Work Order baseline (overwrite=True) to use it."
+            )
+        raise ValueError(f"No structured source result found for project '{project_id}' -- record its baseline again to populate one.")
+    return current
+
+
+# ---------------------------------------------------------------------------
+# Recommendations -- storage
+# ---------------------------------------------------------------------------
+
+
+def _load_recommendations(company_id: str, project_id: str) -> list[Recommendation]:
+    path = company_store.phase4_recommendations_path(company_id, project_id)
+    if not path.exists():
+        return []
+    return [Recommendation.model_validate(r) for r in json.loads(path.read_text())]
+
+
+def _save_recommendations(company_id: str, project_id: str, recs: list[Recommendation]) -> None:
+    # Atomic write-then-rename -- see company_store.atomic_write_json's
+    # docstring. A plain write_text() here left a window where a
+    # concurrent GET (e.g. the recommendations list re-polling while a
+    # confirm is in flight) could observe a truncated/empty file mid-write
+    # and crash with a JSONDecodeError -- caught live by a concurrency
+    # stress test against this app's other JSON stores.
+    path = company_store.phase4_recommendations_path(company_id, project_id)
+    company_store.atomic_write_json(path, [r.model_dump(mode="json") for r in recs])
+
+
+def list_recommendations(company_id: str, project_id: str, status: Optional[RecommendationStatus] = None) -> list[Recommendation]:
+    recs = _load_recommendations(company_id, project_id)
+    if status is not None:
+        recs = [r for r in recs if r.status == status]
+    return recs
+
+
+def get_recommendation(company_id: str, project_id: str, recommendation_id: str) -> Optional[Recommendation]:
+    for r in _load_recommendations(company_id, project_id):
+        if r.id == recommendation_id:
+            return r
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Audit log -- append-only storage
+# ---------------------------------------------------------------------------
+
+
+def _load_audit_log(company_id: str, project_id: str) -> list[AuditLogEntry]:
+    path = company_store.phase4_audit_log_path(company_id, project_id)
+    if not path.exists():
+        return []
+    return [AuditLogEntry.model_validate(e) for e in json.loads(path.read_text())]
+
+
+def _append_audit_entry(company_id: str, project_id: str, entry: AuditLogEntry) -> None:
+    log = _load_audit_log(company_id, project_id)
+    log.append(entry)  # append-only, by construction -- nothing in this module ever rewrites or removes an entry
+    # Atomic write-then-rename -- see company_store.atomic_write_json's
+    # docstring. This log is read-modify-written on every confirm, so a
+    # plain write_text() left the same truncated-file race the stress
+    # test reproduced elsewhere in this app.
+    path = company_store.phase4_audit_log_path(company_id, project_id)
+    company_store.atomic_write_json(path, [e.model_dump(mode="json") for e in log])
+
+
+def list_audit_log(company_id: str, project_id: str) -> list[AuditLogEntry]:
+    return _load_audit_log(company_id, project_id)
+
+
+# ---------------------------------------------------------------------------
+# Propose / confirm / reject
+# ---------------------------------------------------------------------------
+
+
+def evaluate_catalog_preview(company_id: str, project_id: str) -> list[CatalogPreviewEntry]:
+    current = _load_current_state(company_id, project_id)
+    previews: list[CatalogPreviewEntry] = []
+    for entry in load_catalog():
+        result = substitution_engine.apply_substitution(entry, entry["max_recommended_pct"], current)
+        # Only the catalog's own explicit load-bearing-review flag gates
+        # the badge -- NOT the mere presence of structural_caveat text,
+        # since every real entry carries a caveat note (e.g. "extend
+        # curing time") even when it's still a routine, pre-approved swap.
+        status = "technical_review_required" if entry.get("always_requires_review_if_load_bearing", False) else "verified_suitable"
+        previews.append(CatalogPreviewEntry(
+            substitution_id=entry["id"],
+            label=result.label,
+            base_category=entry["base_category"],
+            evaluated_pct=entry["max_recommended_pct"],
+            applicable=result.affected_line_item_count > 0,
+            affected_line_item_count=result.affected_line_item_count,
+            original_gwp_kg_co2e=result.original_gwp_kg_co2e,
+            new_gwp_kg_co2e=result.new_gwp_kg_co2e,
+            savings_kg_co2e=result.savings_kg_co2e,
+            savings_pct_of_affected_lines=result.savings_pct_of_affected_lines,
+            savings_pct_of_total=result.savings_pct_of_total_boq,
+            status=status,
+            reasoning=result.reasoning,
+            structural_caveat=result.structural_caveat,
+            evidence_tier=result.evidence_tier,
+            source=result.source,
+            requires_supplier_match=result.requires_supplier_match,
+            cost_delta_pct=None,
+        ))
+    return previews
+
+
+def _resolve_entry_for_recommendation(rec: Recommendation) -> dict:
+    """The real entry dict a Recommendation's own real-recompute math
+    runs against -- a catalog row looked up by substitution_id for a
+    "substitution_catalog" rec, or the already-synthesized custom_entry
+    for a "custom_swap" one. Used by both confirm_recommendation() and
+    confirm_recommendation_as_beta_twin() so the two don't each carry
+    their own copy of this branch."""
+    if rec.source == "custom_swap":
+        if rec.custom_entry is None:
+            raise ValueError(f"Recommendation '{rec.id}' is a custom swap with no stored entry -- cannot act on it.")
+        return rec.custom_entry
+    entry = get_substitution(rec.substitution_id)
+    if entry is None:
+        raise ValueError(f"Unknown substitution_id '{rec.substitution_id}' -- the catalog entry this recommendation referenced no longer exists.")
+    return entry
+
+
+def propose_recommendation(company_id: str, project_id: str, substitution_id: str, user_pct: float) -> Recommendation:
+    entry = get_substitution(substitution_id)
+    if entry is None:
+        raise ValueError(f"Unknown substitution_id '{substitution_id}'")
+
+    current = _load_current_state(company_id, project_id)
+    result = substitution_engine.apply_substitution(entry, user_pct, current)
+
+    rec = Recommendation(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        company_id=company_id,
+        source="substitution_catalog",
+        substitution_id=substitution_id,
+        label=result.label,
+        user_pct=user_pct,
+        description=f"{result.label} at {user_pct:g}% ({result.affected_line_item_count} affected line item{'s' if result.affected_line_item_count != 1 else ''})",
+        reasoning=result.reasoning,
+        requires_engineering_review=result.requires_engineering_review,
+        affected_line_item_count=result.affected_line_item_count,
+        carbon_kg_before=result.original_gwp_kg_co2e,
+        carbon_kg_after=result.new_gwp_kg_co2e,
+        delta_kg=result.savings_kg_co2e,
+        delta_pct=result.savings_pct_of_affected_lines,
+        status="pending",
+        created_at=datetime.utcnow().isoformat(),
+    )
+
+    recs = _load_recommendations(company_id, project_id)
+    recs.append(rec)
+    _save_recommendations(company_id, project_id, recs)
+    return rec
+
+
+class CustomSwapProposalResult(BaseModel):
+    """Returned by evaluate_and_propose_custom_swap() below -- the full
+    swap_sandbox.CustomSwapEvaluation (interpretation, computed numbers,
+    disclosures, advisory) for immediate display, PLUS the Recommendation
+    it was persisted as, so the caller can confirm-as-beta/reject it
+    later without re-parsing the original question. `recommendation` is
+    None exactly when `evaluation.needs_clarification` is set -- nothing
+    is persisted for a request this app couldn't resolve into a real
+    swap, per this module's own "no new calculation logic without a real
+    state to feed it" discipline."""
+
+    evaluation: swap_sandbox.CustomSwapEvaluation
+    recommendation: Optional[Recommendation] = None
+
+
+def evaluate_and_propose_custom_swap(company_id: str, project_id: str, question: str) -> CustomSwapProposalResult:
+    """The Swap Sandbox's own entry point -- stateful orchestration
+    (load current_state, persist a pending Recommendation) deliberately
+    kept HERE rather than in swap_sandbox.py itself, so that module stays
+    a pure compute module with no I/O/persistence concerns, exactly
+    mirroring substitution_engine.py's own shape. The actual parsing/
+    resolving/computing is entirely swap_sandbox.evaluate_custom_swap()
+    -- this function's only job is loading its input and, when it
+    produced a real result, storing it as the same kind of Recommendation
+    row every other source already uses (same list/confirm/reject
+    functions, same audit trail, source="custom_swap" is the only
+    difference)."""
+    current = _load_current_state(company_id, project_id)
+    evaluation = swap_sandbox.evaluate_custom_swap(question, current)
+
+    if evaluation.needs_clarification or evaluation.entry is None or evaluation.computed is None:
+        return CustomSwapProposalResult(evaluation=evaluation, recommendation=None)
+
+    entry = evaluation.entry
+    result = evaluation.computed
+    rec = Recommendation(
+        id=str(uuid.uuid4()),
+        project_id=project_id,
+        company_id=company_id,
+        source="custom_swap",
+        substitution_id=None,
+        custom_entry=entry,
+        disclosures=evaluation.disclosures,
+        advisory=evaluation.advisory,
+        label=entry.get("substitute_label", entry["id"]),
+        user_pct=evaluation.intent.split_pct,
+        description=evaluation.interpretation_summary or question,
+        reasoning=entry["reasoning"],
+        requires_engineering_review=result.requires_engineering_review,
+        affected_line_item_count=result.affected_line_item_count,
+        carbon_kg_before=result.original_gwp_kg_co2e,
+        carbon_kg_after=result.new_gwp_kg_co2e,
+        delta_kg=result.savings_kg_co2e,
+        delta_pct=result.savings_pct_of_affected_lines,
+        status="pending",
+        created_at=datetime.utcnow().isoformat(),
+    )
+
+    recs = _load_recommendations(company_id, project_id)
+    recs.append(rec)
+    _save_recommendations(company_id, project_id, recs)
+
+    return CustomSwapProposalResult(evaluation=evaluation, recommendation=rec)
+
+
+def confirm_recommendation(company_id: str, project_id: str, recommendation_id: str) -> ConfirmResult:
+    recs = _load_recommendations(company_id, project_id)
+    rec = next((r for r in recs if r.id == recommendation_id), None)
+    if rec is None:
+        raise ValueError(f"No recommendation '{recommendation_id}' found for project '{project_id}'")
+    if rec.status != "pending":
+        raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be confirmed.")
+
+    entry = _resolve_entry_for_recommendation(rec)
+
+    current = _load_current_state(company_id, project_id)
+    before_total = current.total_gwp_kg_co2e
+    new_result = _apply_overlay_to_result(entry, rec.user_pct, current)
+    after_total = new_result.total_gwp_kg_co2e
+
+    phase3.save_source_result(company_id, project_id, new_result)
+
+    now = datetime.utcnow().isoformat()
+    rec.status = "confirmed"
+    rec.decided_at = now
+    _save_recommendations(company_id, project_id, recs)
+
+    audit_entry = AuditLogEntry(
+        id=str(uuid.uuid4()),
+        recommendation_id=rec.id,
+        source=rec.source,
+        substitution_id=rec.substitution_id,
+        label=rec.label,
+        user_pct=rec.user_pct,
+        description=rec.description,
+        total_gwp_kg_co2e_before=before_total,
+        total_gwp_kg_co2e_after=after_total,
+        delta_kg=before_total - after_total,
+        delta_pct=((before_total - after_total) / before_total * 100) if before_total else 0.0,
+        confirmed_at=now,
+    )
+    _append_audit_entry(company_id, project_id, audit_entry)
+
+    return ConfirmResult(
+        recommendation=rec,
+        audit_entry=audit_entry,
+        project_total_gwp_kg_co2e_before=before_total,
+        project_total_gwp_kg_co2e_after=after_total,
+    )
+
+
+class ProjectForkResult(BaseModel):
+    """Returned by _fork_project_with_overlay() below -- just the new
+    project's identity/total, with no Recommendation attached, since the
+    helper itself is recommendation-agnostic (see that function's own
+    docstring). The caller wraps this into a BetaForkResult alongside
+    whichever Recommendation it came from."""
+
+    new_project_id: str
+    new_project_name: str
+    new_project_total_gwp_kg_co2e: float
+
+
+def _scale_bill_to_swap(bill, current: AnyCarbonResult, new_result: AnyCarbonResult):
+    """Returns (category_breakdown_rows, total_gwp_kg_co2e) for `bill` AFTER the
+    swap -- on the BILL's own billed-to-date basis, never the whole project.
+
+    A bill stores only per-category totals (no line items), so the swap can't be
+    re-run line by line on it. Instead each category row is scaled by that
+    category's own project-level change (new / old category GWP from the full
+    result). Categories the swap doesn't touch have ratio 1.0 and keep their
+    exact billed-to-date value; a bill still labelled with the old single
+    "concrete" category uses the combined rcc+pcc ratio. Whatever part of the bill's
+    total is not in any category row is carried over unchanged.
+    """
+    old_by = {c.category: c.gwp_kg_co2e for c in current.by_category}
+    new_by = {c.category: c.gwp_kg_co2e for c in new_result.by_category}
+
+    def ratio(cat):
+        if cat == "concrete":
+            o = old_by.get("rcc", 0.0) + old_by.get("pcc", 0.0) + old_by.get("concrete", 0.0)
+            n = new_by.get("rcc", 0.0) + new_by.get("pcc", 0.0) + new_by.get("concrete", 0.0)
+        else:
+            o, n = old_by.get(cat, 0.0), new_by.get(cat, 0.0)
+        return (n / o) if o > 0 else 1.0
+
+    rows = [dict(r) for r in (bill.category_breakdown or [])]
+    old_rows_total = sum(r.get("gwp_kg_co2e") or 0.0 for r in rows)
+    for r in rows:
+        k = ratio(r.get("category"))
+        r["gwp_kg_co2e"] = (r.get("gwp_kg_co2e") or 0.0) * k
+        if k != 1.0 and r.get("representative_emission_factor") is not None:
+            r["representative_emission_factor"] = r["representative_emission_factor"] * k
+    new_rows_total = sum(r["gwp_kg_co2e"] for r in rows)
+    new_total = (bill.total_gwp_kg_co2e_to_date or 0.0) - old_rows_total + new_rows_total
+    for r in rows:
+        r["pct_of_total"] = (r["gwp_kg_co2e"] / new_total * 100) if new_total else 0.0
+    rows.sort(key=lambda r: -r["gwp_kg_co2e"])
+    return rows, new_total
+
+
+def _fork_project_with_overlay(company_id: str, project_id: str, entry: dict, user_pct: float, label: str) -> ProjectForkResult:
+    """Forks a brand-new sibling project carrying `entry`'s substituted
+    figures (at `user_pct`), and NEVER writes to the SOURCE project's own
+    save_source_result or audit log -- the source project is byte-for-
+    byte unaffected. The new project is a real project in every other
+    respect (own baseline, own bills, openable/findable like any other);
+    it's only grouped separately in the Directory via
+    project_registry.mark_as_beta_twin()'s is_beta_twin flag.
+
+    Extracted from what was confirm_recommendation_as_beta_twin()'s own
+    body, unchanged in substance -- parametrized by a plain entry/
+    user_pct/label instead of reading them off a Recommendation, so both
+    the fixed-catalog confirm path AND the swap sandbox's custom-entry
+    confirm path (confirm_recommendation_as_beta_twin() below handles
+    both, see _resolve_entry_for_recommendation()) call this ONE fork
+    implementation rather than each carrying their own ~100-line copy.
+
+    The new project's bill history is copied from the source project
+    unchanged, except the LATEST bill's carbon figures (never its period/
+    billed_date/value -- cost is deliberately untouched, see this
+    module's own "carbon only, not cost" scope-cut note) are overwritten
+    with the substituted total, so the twin's own dashboard/chart render
+    exactly like any other project's, just ending on the substituted
+    figure. A source project with no bills yet gets one synthetic bill
+    instead, dated today, so the twin's Directory card has something to
+    show.
+    """
+    from app.services import project_registry  # lazy import, same reason project_registry.py itself lazily imports phase3/project_store
+
+    current = _load_current_state(company_id, project_id)
+    new_result = _apply_overlay_to_result(entry, user_pct, current)
+
+    baseline = phase3.load_baseline(company_id, project_id)
+    if baseline is None:
+        # _load_current_state() above would already have raised if this
+        # were missing -- defensive only, never expected to trigger.
+        raise ValueError(f"Project '{project_id}' has no Phase 3 baseline recorded yet.")
+
+    source_name = project_registry.get_project_name(company_id, project_id) or project_id
+    new_project_id = f"{project_id}-beta-{uuid.uuid4().hex[:8]}"
+    new_project_name = f"{source_name} — Material Change Projects (Beta)"
+    now = datetime.utcnow().isoformat()
+
+    new_baseline = baseline.model_copy(update={"project_id": new_project_id, "project_name": new_project_name})
+    phase3.save_baseline(new_baseline)  # self-registers new_project_name via its own register_project() hook
+
+    bills = phase3.list_bill_periods(company_id, project_id)
+    new_category_breakdown = [c.model_dump() for c in new_result.by_category]
+    reported_total = new_result.total_gwp_kg_co2e
+    if bills:
+        # Cumulative-basis bills (the norm): earlier bills are history and stay
+        # as billed; only the latest bill (the current billed-to-date state)
+        # carries the swap, on ITS OWN billed-to-date figures -- not the whole
+        # project's. Present-basis bills are per-period and add up, so the
+        # swap has to apply to every one of them.
+        latest = bills[-1]
+        scale_all = getattr(latest, "quantity_basis", "cummulative") == "present"
+        for b in bills[:-1]:
+            upd = {"project_id": new_project_id}
+            if scale_all and b.category_breakdown:
+                rows, tot = _scale_bill_to_swap(b, current, new_result)
+                upd.update({"category_breakdown": rows, "total_gwp_kg_co2e_to_date": tot,
+                            "cost_per_kg_co2e_to_date": (b.total_value_to_date / tot) if tot else None})
+            phase3.save_bill_period(b.model_copy(update=upd), overwrite=True)
+        if latest.category_breakdown:
+            latest_rows, latest_total = _scale_bill_to_swap(latest, current, new_result)
+        else:
+            # A bill with no stored category breakdown (e.g. xlsx_boq-sourced)
+            # can't be scaled per category; fall back to the project-level
+            # ratio on its total so it still never jumps to the whole project.
+            ratio_total = (new_result.total_gwp_kg_co2e / current.total_gwp_kg_co2e) if current.total_gwp_kg_co2e else 1.0
+            latest_rows, latest_total = None, (latest.total_gwp_kg_co2e_to_date or 0.0) * ratio_total
+        cost_per_kg = (latest.total_value_to_date / latest_total) if latest_total else None
+        twin_latest = latest.model_copy(update={
+            "project_id": new_project_id,
+            "total_gwp_kg_co2e_to_date": latest_total,
+            "category_breakdown": latest_rows,
+            "cost_per_kg_co2e_to_date": cost_per_kg,
+            "recorded_at": now,
+        })
+        reported_total = latest_total
+        phase3.save_bill_period(twin_latest, overwrite=True)
+    else:
+        total_value = new_result.coverage.total_value if new_result.coverage else 0.0
+        cost_per_kg = (total_value / new_result.total_gwp_kg_co2e) if new_result.total_gwp_kg_co2e else None
+        # The only two BOQ-specific field names left in this function --
+        # WoCarbonResult names the same two counts n_line_items_computed/
+        # n_line_items_parsed instead of n_lines_computed/n_lines_total.
+        if isinstance(new_result, WoCarbonResult):
+            n_computed, n_total = new_result.n_line_items_computed, new_result.n_line_items_parsed
+        else:
+            n_computed, n_total = new_result.n_lines_computed, new_result.n_lines_total
+        synthetic_bill = phase3.BillPeriod(
+            project_id=new_project_id,
+            company_id=company_id,
+            period="Beta Scenario",
+            billed_date=now[:10],
+            source_file=f"Material substitution scenario: {label}",
+            recorded_at=now,
+            stated_percent_complete=100.0,
+            total_gwp_kg_co2e_to_date=new_result.total_gwp_kg_co2e,
+            total_value_to_date=total_value,
+            cost_per_kg_co2e_to_date=cost_per_kg,
+            coverage=new_result.coverage,
+            n_lines_computed=n_computed,
+            n_lines_total=n_total,
+            bill_source=None,
+            category_breakdown=new_category_breakdown,
+        )
+        phase3.save_bill_period(synthetic_bill, overwrite=True)
+
+    # The twin's own source_result, so reopening ITS Alternatives section
+    # later has a correct current-state baseline to compare further
+    # scenarios against -- same reason record_baseline() saves one for
+    # every new BOQ-sourced project.
+    phase3.save_source_result(company_id, new_project_id, new_result)
+
+    # Copy archetype/construction_stage/location from the source project
+    # (purely descriptive metadata, same fields Portfolio Overview's
+    # profile editor sets) so the twin's Directory card isn't blank.
+    source_profile = next(
+        (p for p in project_registry.list_named_projects(company_id) if p["project_id"] == project_id), None
+    )
+    if source_profile is not None:
+        project_registry.set_project_profile(
+            company_id, new_project_id,
+            archetype=source_profile.get("archetype"),
+            construction_stage=source_profile.get("construction_stage"),
+            location=source_profile.get("location"),
+        )
+    project_registry.mark_as_beta_twin(company_id, new_project_id, source_project_id=project_id)
+
+    return ProjectForkResult(
+        new_project_id=new_project_id,
+        new_project_name=new_project_name,
+        new_project_total_gwp_kg_co2e=reported_total,
+    )
+
+
+def confirm_recommendation_as_beta_twin(company_id: str, project_id: str, recommendation_id: str) -> BetaForkResult:
+    """The user-facing "Confirm Change" action in the Project Dashboard's
+    Material Alternatives (Beta) section, AND the Swap Sandbox's own
+    "Confirm as Beta Project" action -- deliberately NOT a variant of
+    confirm_recommendation() above, which is left completely untouched
+    (still does its original in-place overwrite, in case anything else
+    ever depends on it) and is simply no longer called by that UI.
+
+    Works identically for a "substitution_catalog" Recommendation (entry
+    looked up by substitution_id) and a "custom_swap" one from the Swap
+    Sandbox (entry is the Recommendation's own stored custom_entry) --
+    see _resolve_entry_for_recommendation(). Either way, the actual fork
+    happens in _fork_project_with_overlay() above; this function's own
+    job is just resolving which entry to fork with and updating this
+    Recommendation's own status afterward.
+    """
+    recs = _load_recommendations(company_id, project_id)
+    rec = next((r for r in recs if r.id == recommendation_id), None)
+    if rec is None:
+        raise ValueError(f"No recommendation '{recommendation_id}' found for project '{project_id}'")
+    if rec.status != "pending":
+        raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be confirmed.")
+
+    entry = _resolve_entry_for_recommendation(rec)
+    fork = _fork_project_with_overlay(company_id, project_id, entry, rec.user_pct, rec.label)
+
+    rec.status = "confirmed_as_beta"
+    rec.decided_at = datetime.utcnow().isoformat()
+    rec.beta_project_id = fork.new_project_id
+    _save_recommendations(company_id, project_id, recs)
+
+    return BetaForkResult(
+        recommendation=rec,
+        new_project_id=fork.new_project_id,
+        new_project_name=fork.new_project_name,
+        new_project_total_gwp_kg_co2e=fork.new_project_total_gwp_kg_co2e,
+    )
+
+
+def reject_recommendation(company_id: str, project_id: str, recommendation_id: str) -> Recommendation:
+    recs = _load_recommendations(company_id, project_id)
+    rec = next((r for r in recs if r.id == recommendation_id), None)
+    if rec is None:
+        raise ValueError(f"No recommendation '{recommendation_id}' found for project '{project_id}'")
+    if rec.status != "pending":
+        raise ValueError(f"Recommendation '{recommendation_id}' is already '{rec.status}' -- only a pending recommendation can be rejected.")
+    rec.status = "rejected"
+    rec.decided_at = datetime.utcnow().isoformat()
+    _save_recommendations(company_id, project_id, recs)
+    return rec
+
+
+def get_current_state_summary(company_id: str, project_id: str) -> CurrentStateSummary:
+    baseline = phase3.load_baseline(company_id, project_id)
+    if baseline is None:
+        raise ValueError(f"Project '{project_id}' has no Phase 3 baseline recorded yet.")
+    current = phase3.load_source_result(company_id, project_id)
+    current_total = current.total_gwp_kg_co2e if current is not None else baseline.total_gwp_kg_co2e
+
+    recs = _load_recommendations(company_id, project_id)
+    return CurrentStateSummary(
+        project_id=project_id,
+        company_id=company_id,
+        baseline_total_gwp_kg_co2e=baseline.total_gwp_kg_co2e,
+        current_total_gwp_kg_co2e=current_total,
+        total_delta_kg=baseline.total_gwp_kg_co2e - current_total,
+        total_delta_pct=((baseline.total_gwp_kg_co2e - current_total) / baseline.total_gwp_kg_co2e * 100) if baseline.total_gwp_kg_co2e else 0.0,
+        confirmed_change_count=sum(1 for r in recs if r.status == "confirmed"),
+        pending_recommendation_count=sum(1 for r in recs if r.status == "pending"),
+    )

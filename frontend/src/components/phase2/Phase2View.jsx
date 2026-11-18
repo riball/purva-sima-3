@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { FileSpreadsheet, FileText, Upload, X, HelpCircle, Sliders, Clock } from 'lucide-react'
+import { FileSpreadsheet, FileText, Upload, X, HelpCircle, Sliders, Clock, Plus, AlertTriangle } from 'lucide-react'
 import { api } from '../../api/client'
 import { useProject } from '../../context/ProjectContext'
 import JobResultsCompare from './JobResultsCompare'
@@ -23,7 +23,16 @@ export default function Phase2View() {
   const { activeCompanyId, addToast, activeJobs } = useProject()
 
   // Dual dropzone state -- either or both may be filled before submitting
-  const [boqFile, setBoqFile] = useState(null)
+  // One or more BOQ workbooks, calculated together as ONE combined BOQ.
+  // boqInspect/sheetPick are aligned with boqFiles: what sheets each file
+  // has (from POST /uploads/boq/inspect) and which of them are ticked.
+  // sheetPick[i] is null until that file has been inspected.
+  const [boqFiles, setBoqFiles] = useState([])
+  const [boqInspect, setBoqInspect] = useState([])
+  const [sheetPick, setSheetPick] = useState([])
+  const [boqWarnings, setBoqWarnings] = useState([])
+  const [isInspecting, setIsInspecting] = useState(false)
+  const boqFile = boqFiles.length === 1 ? boqFiles[0] : null // What-If Sandbox works on a single workbook
   const [woFile, setWoFile] = useState(null)
   const [projectName, setProjectName] = useState('')
   const [floorAreaSqm, setFloorAreaSqm] = useState('25000')
@@ -74,6 +83,66 @@ export default function Phase2View() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeJobCount])
 
+  const addBoqFiles = (fileList) => {
+    const incoming = Array.from(fileList || [])
+    if (incoming.length === 0) return
+    const fresh = incoming.filter((f) => !boqFiles.some((p) => p.name === f.name && p.size === f.size && p.lastModified === f.lastModified))
+    if (fresh.length < incoming.length) addToast('A file that is already in the list was skipped', 'info')
+    if (fresh.length === 0) return
+    setBoqFiles((prev) => [...prev, ...fresh])
+    setSheetPick((prev) => [...prev, ...fresh.map(() => null)])
+    setBoqInspect((prev) => [...prev, ...fresh.map(() => null)])
+  }
+
+  const removeBoqFile = (idx) => {
+    setBoqFiles((prev) => prev.filter((_, i) => i !== idx))
+    setSheetPick((prev) => prev.filter((_, i) => i !== idx))
+    setBoqInspect((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const toggleSheet = (fileIdx, sheetName) => {
+    setSheetPick((prev) =>
+      prev.map((pick, i) => {
+        if (i !== fileIdx || pick === null) return pick
+        return pick.includes(sheetName) ? pick.filter((n) => n !== sheetName) : [...pick, sheetName]
+      })
+    )
+  }
+
+  // Whenever the file list or the ticked sheets change, re-read each file's
+  // sheet list and the overlap warnings for exactly the ticked sheets.
+  // First time a file is seen (pick === null) its default sheets get ticked.
+  const pickKey = JSON.stringify(sheetPick)
+  useEffect(() => {
+    if (boqFiles.length === 0) {
+      setBoqWarnings([])
+      return undefined
+    }
+    let cancelled = false
+    const t = setTimeout(async () => {
+      setIsInspecting(true)
+      try {
+        const res = await api.inspectBoqFiles(boqFiles, sheetPick)
+        if (cancelled) return
+        setBoqInspect(res.files)
+        setBoqWarnings(res.warnings || [])
+        setSheetPick((prev) => {
+          if (!prev.some((p) => p === null)) return prev
+          return prev.map((p, i) => (p === null ? (res.files[i]?.sheets || []).filter((sh) => sh.selected_by_default).map((sh) => sh.name) : p))
+        })
+      } catch (err) {
+        if (!cancelled) addToast(`Could not read the BOQ file(s): ${err.message}`, 'error')
+      } finally {
+        if (!cancelled) setIsInspecting(false)
+      }
+    }, 350)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boqFiles, pickKey])
+
   // Substitution Simulation (unchanged, keyed off the retained boqFile)
   const [showSubSim, setShowSubSim] = useState(false)
   const [subCatalog, setSubCatalog] = useState([])
@@ -83,9 +152,24 @@ export default function Phase2View() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!boqFile && !woFile) {
+    if (boqFiles.length === 0 && !woFile) {
       addToast('Select at least one file — a BOQ, a Work Order, or both', 'error')
       return
+    }
+    if (boqFiles.length > 0) {
+      if (isInspecting || sheetPick.some((p) => p === null)) {
+        addToast('Still reading the BOQ sheets — try again in a moment', 'info')
+        return
+      }
+      const emptyIdx = sheetPick.findIndex((p, i) => (p || []).length === 0 && !boqInspect[i]?.error)
+      if (emptyIdx !== -1) {
+        addToast(`Tick at least one sheet for ${boqFiles[emptyIdx].name} (or remove that file)`, 'error')
+        return
+      }
+      if (boqInspect.some((f) => f?.error)) {
+        addToast('One of the BOQ files could not be read — remove it and try again', 'error')
+        return
+      }
     }
     if (!floorAreaSqm) {
       addToast('Total Built-Up Area (TBUA) is required — it is used to calculate embodied carbon per m² and as the project baseline\'s floor area', 'error')
@@ -99,7 +183,7 @@ export default function Phase2View() {
     setIsSubmitting(true)
     try {
       const res = await api.uploadCombined(
-        { boqFile, woFile },
+        { boqFiles, boqSheets: sheetPick, woFile },
         { floorAreaSqm: floorAreaSqm ? Number(floorAreaSqm) : undefined, floorAreaBasis, companyId: activeCompanyId }
       )
       const kinds = [res.boq_job_id && 'BOQ', res.wo_job_id && 'Work Order'].filter(Boolean).join(' + ')
@@ -116,7 +200,10 @@ export default function Phase2View() {
       // Reset the name + files so the next upload starts clean -- each
       // submission names its own project, nothing carries over by accident.
       setProjectName('')
-      setBoqFile(null)
+      setBoqFiles([])
+      setSheetPick([])
+      setBoqInspect([])
+      setBoqWarnings([])
       setWoFile(null)
     } catch (err) {
       addToast(`Could not start calculation: ${err.message}`, 'error')
@@ -154,6 +241,7 @@ export default function Phase2View() {
     setIsSimulating(true)
     try {
       const sim = await api.substituteBoq(boqFile, requested, {
+        sheetName: sheetPick[0]?.length === 1 ? sheetPick[0][0] : undefined,
         floorAreaSqm: floorAreaSqm ? Number(floorAreaSqm) : undefined,
         floorAreaBasis: floorAreaBasis || undefined,
       })
@@ -208,14 +296,15 @@ export default function Phase2View() {
       {/* Dual Dropzone Upload Form */}
       <form onSubmit={handleSubmit} className="glass-panel" style={{ padding: 26 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 18, marginBottom: 20 }}>
-          <Dropzone
-            icon={FileSpreadsheet}
-            label="Bill of Quantities"
-            hint="Automatically ignores derived & supplementary sheets (e.g. Derived Items, NT#0x)"
-            accept=".xlsx,.xls"
-            file={boqFile}
-            onSelect={setBoqFile}
-            onClear={() => setBoqFile(null)}
+          <BoqMultiDropzone
+            files={boqFiles}
+            inspect={boqInspect}
+            picks={sheetPick}
+            warnings={boqWarnings}
+            isInspecting={isInspecting}
+            onAdd={addBoqFiles}
+            onRemove={removeBoqFile}
+            onToggleSheet={toggleSheet}
           />
           <Dropzone
             icon={FileText}
@@ -305,7 +394,7 @@ export default function Phase2View() {
         <button
           type="submit"
           className="btn-primary"
-          disabled={isSubmitting || (!boqFile && !woFile) || !floorAreaSqm || !projectName.trim()}
+          disabled={isSubmitting || isInspecting || (boqFiles.length === 0 && !woFile) || !floorAreaSqm || !projectName.trim()}
           style={{ width: '100%', padding: '12px 20px', fontSize: '0.9375rem' }}
         >
           {isSubmitting ? 'Queuing...' : 'Start Background Calculation'}
@@ -518,6 +607,131 @@ function Dropzone({ icon: Icon, label, hint, accept, file, onSelect, onClear }) 
           <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>{file ? 'Selected — ready to queue' : hint}</p>
         </div>
       </div>
+    </div>
+  )
+}
+
+
+function formatInr(n) {
+  if (!n) return '—'
+  if (n >= 1e7) return `₹${(n / 1e7).toFixed(2)} Cr`
+  if (n >= 1e5) return `₹${(n / 1e5).toFixed(1)} L`
+  return `₹${Math.round(n).toLocaleString()}`
+}
+
+/**
+ * Several BOQ workbooks can be added one after the other; every ticked sheet
+ * of every file is calculated together as ONE BOQ. Each workbook lists all
+ * its sheets with a checkbox: real BOQ tables are ticked by default, rate
+ * lists / summary sheets are listed but unticked with the reason, and the
+ * user can still tick any of them. Overlap warnings (e.g. a "Combined" sheet
+ * that is the other sheets merged) are shown but never block the upload.
+ */
+function BoqMultiDropzone({ files, inspect, picks, warnings, isInspecting, onAdd, onRemove, onToggleSheet }) {
+  const inputId = 'dropzone-boq-multi'
+  const hasFiles = files.length > 0
+  return (
+    <div
+      style={{
+        border: `2px dashed ${hasFiles ? 'rgba(var(--c-blue), 0.5)' : 'rgba(var(--c-blue), 0.25)'}`,
+        borderRadius: 'var(--radius-lg)',
+        padding: '18px',
+        background: hasFiles ? 'rgba(var(--c-blue), 0.06)' : 'rgba(var(--c-surf-2), 0.65)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+      }}
+    >
+      <input
+        type="file"
+        id={inputId}
+        accept=".xlsx,.xls"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          onAdd(e.target.files)
+          e.target.value = '' // allow picking the same file again after removing it
+        }}
+      />
+
+      <div
+        style={{ textAlign: 'center', cursor: 'pointer' }}
+        onClick={() => document.getElementById(inputId).click()}
+      >
+        <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(var(--c-blue), 0.1)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-lime)' }}>
+          {hasFiles ? <Plus size={22} /> : <Upload size={22} />}
+        </div>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: 6 }}>
+          {hasFiles ? 'Add another BOQ' : 'Bill of Quantities'}
+        </div>
+        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 4 }}>
+          {hasFiles
+            ? 'All ticked sheets of all files are calculated together as one BOQ'
+            : 'Add one or more BOQ workbooks — every BOQ sheet inside each is included'}
+        </p>
+      </div>
+
+      {files.map((file, fi) => {
+        const info = inspect[fi]
+        const pick = picks[fi] || []
+        return (
+          <div key={`${file.name}-${fi}`} style={{ background: 'rgba(var(--c-black),0.12)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <FileSpreadsheet size={16} style={{ color: 'var(--accent-lime)', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', flex: 1, wordBreak: 'break-all' }}>{file.name}</span>
+              <button
+                type="button"
+                onClick={() => onRemove(fi)}
+                title="Remove this file"
+                style={{ background: 'rgba(var(--c-black),0.4)', border: 'none', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-primary)', cursor: 'pointer', flexShrink: 0 }}
+              >
+                <X size={11} />
+              </button>
+            </div>
+
+            {!info && <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 6 }}>Reading sheets…</p>}
+            {info?.error && <p style={{ fontSize: '0.72rem', color: 'var(--accent-rose)', marginTop: 6 }}>{info.error}</p>}
+
+            {info && !info.error && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+                {info.sheets.map((sh) => {
+                  const checked = pick.includes(sh.name)
+                  return (
+                    <label key={sh.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '0.75rem', cursor: 'pointer', color: checked ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                      <input type="checkbox" checked={checked} onChange={() => onToggleSheet(fi, sh.name)} style={{ marginTop: 2 }} />
+                      <span style={{ flex: 1 }}>
+                        <strong style={{ fontWeight: 600 }}>{sh.name}</strong>
+                        {sh.n_lines > 0 && (
+                          <span style={{ color: 'var(--text-muted)' }}> — {sh.n_lines} lines{sh.total_amount ? ` · ${formatInr(sh.total_amount)}` : ''}</span>
+                        )}
+                        {sh.skip_reason && (
+                          <span style={{ display: 'block', fontSize: '0.68rem', color: 'var(--text-muted)' }}>Not included automatically: {sh.skip_reason}</span>
+                        )}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {isInspecting && hasFiles && <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Checking sheets for overlaps…</p>}
+
+      {warnings.length > 0 && (
+        <div style={{ border: '1px solid rgba(var(--c-amber), 0.45)', background: 'rgba(var(--c-amber), 0.08)', borderRadius: 'var(--radius-md)', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
+            <AlertTriangle size={14} style={{ color: 'var(--accent-amber)' }} /> Possible double counting
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            {warnings.map((w, i) => (
+              <li key={i}>{w}</li>
+            ))}
+          </ul>
+          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 6 }}>You can still upload as is, or untick the repeated sheet above.</p>
+        </div>
+      )}
     </div>
   )
 }

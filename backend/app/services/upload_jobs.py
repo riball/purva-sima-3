@@ -31,8 +31,7 @@ from typing import Optional
 
 from app.services import company_store, job_store, phase3, reference_store
 from app.services.boq_cache import save_extraction
-from app.services.boq_carbon.engine import BoqCarbonResult, FloorAreaBasis, calculate_from_boq
-from app.services.boq_carbon.parser import extract_from_first_primary_sheet
+from app.services.boq_carbon.engine import BoqCarbonResult, BoqSource, FloorAreaBasis, calculate_from_boq_sources
 from app.services.boq_extractor import SUPPLEMENTARY_SHEET_PATTERNS, extract_boq
 from app.services.wo_carbon.wo_carbon_engine import WoCarbonResult, calculate_from_work_order
 
@@ -68,6 +67,8 @@ def _summarize_boq(result: BoqCarbonResult) -> dict:
         "coverage_pct": result.coverage.coverage_pct if result.coverage else None,
         "top5_coverage_pct": result.coverage.top5_coverage_pct if result.coverage else None,
         "source_file": result.source_file,
+        "n_sources": len(result.sources),
+        "n_warnings": len(result.warnings),
     }
 
 
@@ -106,12 +107,12 @@ def run_boq_job(
     """
     job_store.mark_running(company_id, job_id)
     try:
-        resolved_sheet = sheet_name
-        if resolved_sheet is None:
-            resolved_sheet, _ = extract_from_first_primary_sheet(tmp_path, SUPPLEMENTARY_SHEET_PATTERNS)
-
-        result = calculate_from_boq(tmp_path, resolved_sheet, floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis)
-        result.source_file = original_filename
+        # sheet_name None (the default) = every BOQ sheet in the workbook, not
+        # just the first one; a named sheet restricts it to that sheet.
+        result = calculate_from_boq_sources(
+            [BoqSource(file_path=tmp_path, display_name=original_filename, sheets=[sheet_name] if sheet_name else None)],
+            floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis,
+        )
 
         if register_as_reference:
             slug = reference_slug or reference_store.slugify(Path(original_filename).stem)
@@ -133,6 +134,39 @@ def run_boq_job(
             Path(tmp_path).unlink(missing_ok=True)
         except OSError:
             pass
+
+
+def run_boq_multi_job(
+    company_id: str,
+    job_id: str,
+    sources: list[dict],
+    floor_area_sqm: Optional[float],
+    floor_area_basis: Optional[FloorAreaBasis],
+) -> None:
+    """Background-task body for a BOQ upload of ONE OR MORE workbooks, each
+    with its own chosen sheets, calculated together as a single combined
+    result (one total, one breakdown, per-sheet figures in `sources`).
+
+    `sources`: [{"tmp_path": str, "filename": str, "sheets": list[str] | None}]
+    -- sheets None/empty = every BOQ sheet of that workbook. This function
+    owns deleting every tmp_path when it finishes, success or not.
+    """
+    job_store.mark_running(company_id, job_id)
+    try:
+        result = calculate_from_boq_sources(
+            [BoqSource(file_path=s["tmp_path"], display_name=s["filename"], sheets=s.get("sheets")) for s in sources],
+            floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis,
+        )
+        _save_full_result(company_id, job_id, result)
+        job_store.mark_succeeded(company_id, job_id, _summarize_boq(result))
+    except Exception as e:  # noqa: BLE001 -- the job record IS the error channel for a background task
+        job_store.mark_failed(company_id, job_id, str(e))
+    finally:
+        for s in sources:
+            try:
+                Path(s["tmp_path"]).unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 def run_wo_job(

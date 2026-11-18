@@ -132,8 +132,8 @@ async def record_baseline(
     try:
         if source_type == "boq":
             resolved_sheet = sheet_name
-            if resolved_sheet is None:
-                resolved_sheet, _ = extract_from_first_primary_sheet(str(tmp_path), SUPPLEMENTARY_SHEET_PATTERNS)
+            # resolved_sheet stays None when the caller named no sheet: calculate_from_boq
+            # then calculates EVERY BOQ sheet in the workbook, not just the first one.
             result = calculate_from_boq(
                 str(tmp_path), resolved_sheet, floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis
             )
@@ -301,8 +301,8 @@ async def upload_bill(
             )
         else:
             resolved_sheet = sheet_name
-            if resolved_sheet is None:
-                resolved_sheet, _ = extract_from_first_primary_sheet(str(tmp_path), SUPPLEMENTARY_SHEET_PATTERNS)
+            # resolved_sheet stays None when the caller named no sheet: calculate_from_boq
+            # then calculates EVERY BOQ sheet in the workbook, not just the first one.
 
             # Reuse the baseline's own floor area for a per-sqm figure on
             # this bill too, when the baseline recorded one -- a bill is

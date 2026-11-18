@@ -48,6 +48,7 @@ from app.services.boq_carbon.engine import (
     BoqCarbonResult,
     LineItemResult,
     compute_line_gwp,
+    line_key,
     _MASS_KG_UNITS,
     _MASS_MT_UNITS,
     _VOL_UNITS,
@@ -274,7 +275,7 @@ def apply_substitutions(
         entry = get_substitution(req.substitution_id)
         if entry is None:
             raise ValueError(f"Unknown substitution_id '{req.substitution_id}'")
-        matched_rows = {li.row for li in _lines_affected_by(entry, base_result)}
+        matched_rows = {line_key(li) for li in _lines_affected_by(entry, base_result)}
         row_sets.append(matched_rows)
         results.append(apply_substitution(entry, req.user_pct, base_result))
 

@@ -181,6 +181,55 @@ export default function JobDashboardPage() {
         </button>
       </div>
 
+      {/* Which sheets / files fed this result (BOQ only) + overlap cautions */}
+      {isBoq && (result.warnings?.length > 0 || result.sources?.length > 1) && (
+        <div className="glass-panel" style={{ padding: 20 }}>
+          {result.warnings?.length > 0 && (
+            <div style={{ border: '1px solid rgba(var(--c-amber), 0.45)', background: 'rgba(var(--c-amber), 0.08)', borderRadius: 'var(--radius-md)', padding: '10px 14px', marginBottom: result.sources?.length > 1 ? 14 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
+                <AlertTriangle size={14} style={{ color: 'var(--accent-amber)' }} /> Possible double counting
+              </div>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                {result.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {result.sources?.length > 1 && (
+            <>
+              <h4 style={{ fontSize: '0.9375rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Sheets Included in This Result</h4>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(var(--c-overlay),0.08)' }}>
+                      <th style={thStyle}>File</th>
+                      <th style={thStyle}>Sheet</th>
+                      <th style={thStyleRight}>Lines</th>
+                      <th style={thStyleRight}>Computed</th>
+                      <th style={thStyleRight}>Carbon (tCO₂e)</th>
+                      <th style={thStyleRight}>Value (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.sources.map((src, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(var(--c-overlay),0.04)' }}>
+                        <td style={tdStyle}>{src.source_file}</td>
+                        <td style={tdStyle}>{src.sheet_name}</td>
+                        <td style={tdStyleRight}>{src.n_lines_total}</td>
+                        <td style={tdStyleRight}>{src.n_lines_computed}</td>
+                        <td style={tdStyleRight}>{(src.total_gwp_kg_co2e / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}</td>
+                        <td style={tdStyleRight}>{src.total_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* KPI row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
         <StatCard
@@ -384,7 +433,7 @@ export default function JobDashboardPage() {
                           </thead>
                           <tbody>
                             {matchingLines.map((li, idx) => {
-                              const description = li.enriched_description || li.description || li.code || `Row ${li.row ?? idx + 1}`
+                              const description = (li.source_sheet && result.sources?.length > 1 ? `[${li.source_sheet}] ` : '') + (li.enriched_description || li.description || li.code || `Row ${li.row ?? idx + 1}`)
                               const category = li.category || li.material_category || '—'
                               const uom = li.uom || li.unit || ''
                               return (
@@ -426,7 +475,7 @@ export default function JobDashboardPage() {
               </thead>
               <tbody>
                 {topLines.map((li, idx) => {
-                  const description = li.enriched_description || li.description || li.code || `Row ${li.row ?? idx + 1}`
+                  const description = (li.source_sheet && result.sources?.length > 1 ? `[${li.source_sheet}] ` : '') + (li.enriched_description || li.description || li.code || `Row ${li.row ?? idx + 1}`)
                   const category = li.category || li.material_category || '—'
                   const uom = li.uom || li.unit || ''
                   return (
