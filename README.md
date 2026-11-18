@@ -159,6 +159,40 @@ roughly 0.1–4 MB, so storage is not a concern for normal use. `pytest` always 
 against a *throwaway* Postgres, set `SIMA_TEST_DATABASE_URL` (this empties its `documents` table, so never
 point it at real data).
 
+## Running with Docker
+
+Both services have a Dockerfile, and `docker-compose.yml` runs them together:
+
+```bash
+cp backend/.env.example backend/.env      # then fill in GROQ_API_KEY and DATABASE_URL
+docker compose up --build
+```
+
+- Frontend: <http://localhost:3000> (nginx serving the built React app)
+- Backend API: <http://localhost:8000> (docs at `/docs`)
+
+**Data is stored in a database, not in the containers** (containers are disposable). Choose one:
+
+- **Supabase:** set its Session-pooler URI as `DATABASE_URL` in `backend/.env` (see
+  [Using Supabase for storage](#using-supabase-for-storage)), then run `docker compose up --build`.
+- **Local Postgres in Docker:** set `DATABASE_URL=postgresql://sima:sima@db:5432/sima` in `backend/.env`, then
+  run `docker compose --profile localdb up --build`. The table is created automatically on first start. To load
+  existing local data into it, run `python scripts/migrate_files_to_database.py --apply --database-url
+  postgresql://sima:sima@localhost:5432/sima` from `backend/` (the compose file does not publish the DB port by
+  default; add `ports: ["5432:5432"]` to the `db` service for this one-off step).
+
+Settings you can override in the shell or a root-level `.env`:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `VITE_API_BASE` | `http://localhost:8000` | Where the **browser** finds the API. Baked into the frontend at build time, so re-run `docker compose build frontend` after changing it. |
+| `CORS_ORIGINS` | `http://localhost:3000` | Browser origin(s) the API accepts, comma-separated. |
+
+To deploy the images on a real host, build with your public API URL, for example
+`docker build --build-arg VITE_API_BASE=https://api.example.com ./frontend`, and run the backend image with
+`DATABASE_URL`, `GROQ_API_KEY` and `CORS_ORIGINS=https://your-frontend-domain` set. The backend listens on
+`$PORT` (default 8000).
+
 ## Frontend layout
 
 `frontend/src/` — `components/` (one folder per area: `phase2` uploads and result dashboards, `project`,

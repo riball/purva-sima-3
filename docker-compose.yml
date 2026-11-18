@@ -1,0 +1,55 @@
+# Run the whole app:   docker compose up --build
+#   frontend -> http://localhost:3000      backend API -> http://localhost:8000/docs
+#
+# Configuration comes from backend/.env (copy backend/.env.example): GROQ_API_KEY, DATABASE_URL.
+#
+# Data lives in a database, not in the containers. Two options:
+#   A) Supabase: put its Session-pooler URI in DATABASE_URL (see README).
+#   B) A local Postgres bundled here:
+#        1. in backend/.env set  DATABASE_URL=postgresql://sima:sima@db:5432/sima
+#        2. docker compose --profile localdb up --build
+#      (the table is created automatically from backend/db/schema.sql on first start)
+
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      # Browser origin of the frontend, for CORS.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Address the BROWSER uses to reach the API (not a container name).
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["localdb"]
+    environment:
+      POSTGRES_USER: sima
+      POSTGRES_PASSWORD: sima
+      POSTGRES_DB: sima
+    volumes:
+      - sima_pgdata:/var/lib/postgresql/data
+      - ./backend/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sima -d sima"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  sima_pgdata:
