@@ -20,6 +20,12 @@ import React, { useMemo } from 'react'
 // (dataviz: "color follows the entity").
 export const CATEGORY_COLORS = {
   concrete: 'var(--chart-cat-1)',
+  // Work Order / bill projects now report concrete as rcc / pcc (same names
+  // a BOQ project uses; see backend app/services/concrete_subtype.py).
+  // RCC keeps concrete's blue; PCC is a lighter tint of it so the two read
+  // as one material family but stay distinguishable.
+  rcc: 'var(--chart-cat-1)',
+  pcc: 'color-mix(in srgb, var(--chart-cat-1) 55%, var(--bg-secondary))',
   reinforcement_steel: 'var(--chart-cat-2)',
   structural_steel: 'var(--chart-cat-3)',
   aluminium: 'var(--chart-cat-4)',
@@ -30,6 +36,8 @@ export const CATEGORY_COLORS = {
 export const FALLBACK_COLOR = 'var(--text-tertiary)'
 export const CATEGORY_LABELS = {
   concrete: 'Concrete',
+  rcc: 'RCC (Reinforced Concrete)',
+  pcc: 'PCC (Plain Concrete)',
   reinforcement_steel: 'Reinforcement Steel',
   structural_steel: 'Structural Steel',
   aluminium: 'Aluminium',

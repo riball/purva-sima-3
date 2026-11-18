@@ -4,12 +4,12 @@
 # history) means it never ends up in a commit that would need to be scrubbed
 # later. Copy frontend/.env.example -> frontend/.env locally if you need one
 # there too; that pattern stays untracked the same way.
-**/.env
+backend/.env
 !**/.env.example
 
 # ---------------------------------------------------------------------------
 # Python (backend)
-backend/venv/
+/venv
 **/__pycache__/
 *.py[cod]
 *.egg-info/

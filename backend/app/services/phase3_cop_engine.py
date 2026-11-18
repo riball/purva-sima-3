@@ -60,6 +60,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel
 
 from app.services import coverage as coverage_service
+from app.services.concrete_subtype import refine_category
 from app.services.cop_bill_parser import parse_cop_pdf
 from app.services.wo_carbon.wo_carbon_engine import _load_master_factors, _resolve_ef, compute_line_gwp_kg
 
@@ -180,6 +181,10 @@ def calculate_from_cop_pdf(pdf_path: str, master_json_path: str, quantity_basis:
         contributes = (m.get("contributes") or "").strip().lower()
         category = m.get("material_category") or None
         desc = m.get("desc") or it.description
+        # Label-only split of "concrete" into "rcc"/"pcc" (see
+        # app/services/concrete_subtype.py); the calculation below still
+        # uses `category` unchanged, so totals are identical.
+        report_category = refine_category(category, desc)
         top5_raw = m.get("top5")
         top5 = top5_raw if isinstance(top5_raw, bool) else (str(top5_raw).strip().lower() == "yes" if top5_raw is not None else None)
 
@@ -187,7 +192,7 @@ def calculate_from_cop_pdf(pdf_path: str, master_json_path: str, quantity_basis:
             line_results.append(CopLineItemResult(
                 item_code=it.item_code, description=desc, unit=it.unit,
                 qty=qty, value=val or 0.0, **raw_fields,
-                contributes=contributes, material_category=category, top5=top5,
+                contributes=contributes, material_category=report_category, top5=top5,
                 basis_note=f"Contributes to Carbon = '{contributes}'",
                 qty_derivation=it.qty_derivation, value_derivation=it.value_derivation,
             ))
@@ -197,7 +202,7 @@ def calculate_from_cop_pdf(pdf_path: str, master_json_path: str, quantity_basis:
             line_results.append(CopLineItemResult(
                 item_code=it.item_code, description=desc, unit=it.unit,
                 qty=None, value=val or 0.0, **raw_fields,
-                contributes=contributes, material_category=category, top5=top5,
+                contributes=contributes, material_category=report_category, top5=top5,
                 basis_note=f"No recoverable {quantity_basis} quantity for this row (value only)",
                 qty_derivation=it.qty_derivation, value_derivation=it.value_derivation,
             ))
@@ -211,13 +216,13 @@ def calculate_from_cop_pdf(pdf_path: str, master_json_path: str, quantity_basis:
         line_results.append(CopLineItemResult(
             item_code=it.item_code, description=desc, unit=it.unit,
             qty=qty, value=val or 0.0, **raw_fields,
-            contributes=contributes, material_category=category, evidence_tier=evidence_tier,
+            contributes=contributes, material_category=report_category, evidence_tier=evidence_tier,
             gwp_kg_co2e=gwp_kg, basis_note=note, top5=top5,
             qty_derivation=it.qty_derivation, value_derivation=it.value_derivation,
         ))
 
         if gwp_kg is not None:
-            c = by_cat.setdefault(category, {"gwp": 0.0, "count": 0, "value": 0.0, "qty": 0.0, "units": set(), "top_gwp": -1.0, "top_note": None})
+            c = by_cat.setdefault(report_category, {"gwp": 0.0, "count": 0, "value": 0.0, "qty": 0.0, "units": set(), "top_gwp": -1.0, "top_note": None})
             c["gwp"] += gwp_kg
             c["count"] += 1
             c["value"] += (val or 0.0)

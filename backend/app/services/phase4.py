@@ -599,6 +599,44 @@ class ProjectForkResult(BaseModel):
     new_project_total_gwp_kg_co2e: float
 
 
+def _scale_bill_to_swap(bill, current: AnyCarbonResult, new_result: AnyCarbonResult):
+    """Returns (category_breakdown_rows, total_gwp_kg_co2e) for `bill` AFTER the
+    swap -- on the BILL's own billed-to-date basis, never the whole project.
+
+    A bill stores only per-category totals (no line items), so the swap can't be
+    re-run line by line on it. Instead each category row is scaled by that
+    category's own project-level change (new / old category GWP from the full
+    result). Categories the swap doesn't touch have ratio 1.0 and keep their
+    exact billed-to-date value; a bill still labelled with the old single
+    "concrete" category uses the combined rcc+pcc ratio. Whatever part of the bill's
+    total is not in any category row is carried over unchanged.
+    """
+    old_by = {c.category: c.gwp_kg_co2e for c in current.by_category}
+    new_by = {c.category: c.gwp_kg_co2e for c in new_result.by_category}
+
+    def ratio(cat):
+        if cat == "concrete":
+            o = old_by.get("rcc", 0.0) + old_by.get("pcc", 0.0) + old_by.get("concrete", 0.0)
+            n = new_by.get("rcc", 0.0) + new_by.get("pcc", 0.0) + new_by.get("concrete", 0.0)
+        else:
+            o, n = old_by.get(cat, 0.0), new_by.get(cat, 0.0)
+        return (n / o) if o > 0 else 1.0
+
+    rows = [dict(r) for r in (bill.category_breakdown or [])]
+    old_rows_total = sum(r.get("gwp_kg_co2e") or 0.0 for r in rows)
+    for r in rows:
+        k = ratio(r.get("category"))
+        r["gwp_kg_co2e"] = (r.get("gwp_kg_co2e") or 0.0) * k
+        if k != 1.0 and r.get("representative_emission_factor") is not None:
+            r["representative_emission_factor"] = r["representative_emission_factor"] * k
+    new_rows_total = sum(r["gwp_kg_co2e"] for r in rows)
+    new_total = (bill.total_gwp_kg_co2e_to_date or 0.0) - old_rows_total + new_rows_total
+    for r in rows:
+        r["pct_of_total"] = (r["gwp_kg_co2e"] / new_total * 100) if new_total else 0.0
+    rows.sort(key=lambda r: -r["gwp_kg_co2e"])
+    return rows, new_total
+
+
 def _fork_project_with_overlay(company_id: str, project_id: str, entry: dict, user_pct: float, label: str) -> ProjectForkResult:
     """Forks a brand-new sibling project carrying `entry`'s substituted
     figures (at `user_pct`), and NEVER writes to the SOURCE project's own
@@ -647,18 +685,39 @@ def _fork_project_with_overlay(company_id: str, project_id: str, entry: dict, us
 
     bills = phase3.list_bill_periods(company_id, project_id)
     new_category_breakdown = [c.model_dump() for c in new_result.by_category]
+    reported_total = new_result.total_gwp_kg_co2e
     if bills:
-        for b in bills[:-1]:
-            phase3.save_bill_period(b.model_copy(update={"project_id": new_project_id}), overwrite=True)
+        # Cumulative-basis bills (the norm): earlier bills are history and stay
+        # as billed; only the latest bill (the current billed-to-date state)
+        # carries the swap, on ITS OWN billed-to-date figures -- not the whole
+        # project's. Present-basis bills are per-period and add up, so the
+        # swap has to apply to every one of them.
         latest = bills[-1]
-        cost_per_kg = (latest.total_value_to_date / new_result.total_gwp_kg_co2e) if new_result.total_gwp_kg_co2e else None
+        scale_all = getattr(latest, "quantity_basis", "cummulative") == "present"
+        for b in bills[:-1]:
+            upd = {"project_id": new_project_id}
+            if scale_all and b.category_breakdown:
+                rows, tot = _scale_bill_to_swap(b, current, new_result)
+                upd.update({"category_breakdown": rows, "total_gwp_kg_co2e_to_date": tot,
+                            "cost_per_kg_co2e_to_date": (b.total_value_to_date / tot) if tot else None})
+            phase3.save_bill_period(b.model_copy(update=upd), overwrite=True)
+        if latest.category_breakdown:
+            latest_rows, latest_total = _scale_bill_to_swap(latest, current, new_result)
+        else:
+            # A bill with no stored category breakdown (e.g. xlsx_boq-sourced)
+            # can't be scaled per category; fall back to the project-level
+            # ratio on its total so it still never jumps to the whole project.
+            ratio_total = (new_result.total_gwp_kg_co2e / current.total_gwp_kg_co2e) if current.total_gwp_kg_co2e else 1.0
+            latest_rows, latest_total = None, (latest.total_gwp_kg_co2e_to_date or 0.0) * ratio_total
+        cost_per_kg = (latest.total_value_to_date / latest_total) if latest_total else None
         twin_latest = latest.model_copy(update={
             "project_id": new_project_id,
-            "total_gwp_kg_co2e_to_date": new_result.total_gwp_kg_co2e,
-            "category_breakdown": new_category_breakdown,
+            "total_gwp_kg_co2e_to_date": latest_total,
+            "category_breakdown": latest_rows,
             "cost_per_kg_co2e_to_date": cost_per_kg,
             "recorded_at": now,
         })
+        reported_total = latest_total
         phase3.save_bill_period(twin_latest, overwrite=True)
     else:
         total_value = new_result.coverage.total_value if new_result.coverage else 0.0
@@ -713,7 +772,7 @@ def _fork_project_with_overlay(company_id: str, project_id: str, entry: dict, us
     return ProjectForkResult(
         new_project_id=new_project_id,
         new_project_name=new_project_name,
-        new_project_total_gwp_kg_co2e=new_result.total_gwp_kg_co2e,
+        new_project_total_gwp_kg_co2e=reported_total,
     )
 
 

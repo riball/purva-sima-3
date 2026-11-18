@@ -52,6 +52,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel
 
 from app.services import coverage as coverage_service
+from app.services.concrete_subtype import refine_category
 from app.services.emission_factors import (
     detect_cement_type,
     detect_grade,
@@ -334,6 +335,11 @@ def calculate_from_work_order(
         # used to do at every single row, every request).
         category = m.get("material_category") or None
         desc = m.get("desc")
+        # Label-only split of the master list's single "concrete" category
+        # into "rcc"/"pcc" (see app/services/concrete_subtype.py). The
+        # CALCULATION below still uses `category` unchanged -- only the
+        # name reported on the line and its category total uses this.
+        report_category = refine_category(category, desc)
         # Workstream 07: the master file's own human-curated top5 flag
         # (a plain JSON true/false as of the migration; tolerate a
         # legacy "yes"/"no" string too since this reads directly off
@@ -344,7 +350,7 @@ def calculate_from_work_order(
         if contributes != "yes":
             line_results.append(WoLineItemResult(
                 code=it.code, description=desc, unit=it.unit, qty=it.qty, rate=it.rate, amount=it.amount,
-                contributes=contributes, material_category=category, top5=top5,
+                contributes=contributes, material_category=report_category, top5=top5,
                 basis_note=f"Contributes to Carbon = '{contributes}'",
             ))
             continue
@@ -365,12 +371,12 @@ def calculate_from_work_order(
 
         line_results.append(WoLineItemResult(
             code=it.code, description=desc, unit=it.unit, qty=it.qty, rate=it.rate, amount=it.amount,
-            contributes=contributes, material_category=category, evidence_tier=evidence_tier,
+            contributes=contributes, material_category=report_category, evidence_tier=evidence_tier,
             gwp_kg_co2e=gwp_kg, basis_note=note, top5=top5,
         ))
 
         if gwp_kg is not None:
-            c = by_cat.setdefault(category, {"gwp": 0.0, "count": 0, "amount": 0.0})
+            c = by_cat.setdefault(report_category, {"gwp": 0.0, "count": 0, "amount": 0.0})
             c["gwp"] += gwp_kg
             c["count"] += 1
             c["amount"] += it.amount
