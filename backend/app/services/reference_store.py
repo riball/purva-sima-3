@@ -48,10 +48,8 @@ def _metadata_path(company_id: str):
 
 def _load_metadata(company_id: str) -> dict:
     path = _metadata_path(company_id)
-    if not path.exists():
-        return {}
-    with open(path, "r") as f:
-        return json.load(f)
+    data = company_store.read_json(path)
+    return {} if data is None else data
 
 
 def _save_metadata(company_id: str, metadata: dict) -> None:
@@ -59,7 +57,7 @@ def _save_metadata(company_id: str, metadata: dict) -> None:
     # docstring (part of the backend-wide fix for the truncated-file race
     # a concurrency stress test reproduced live in this app).
     path = _metadata_path(company_id)
-    company_store.atomic_write_json(path, metadata)
+    company_store.write_json(path, metadata)
 
 
 def upsert_metadata(

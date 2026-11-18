@@ -230,10 +230,7 @@ def _entry_path(company_id: str, entry_id: str) -> Path:
 
 
 def _write_atomic(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f".{uuid.uuid4().hex[:8]}.tmp")
-    tmp_path.write_text(json.dumps(data, indent=2))
-    os.replace(tmp_path, path)  # atomic on every OS this runs on
+    company_store.write_json(path, data)
 
 
 def calculate_and_save(data: OperationalEmissionsInput, company_id: str) -> OperationalEmissionsResult:
@@ -244,26 +241,17 @@ def calculate_and_save(data: OperationalEmissionsInput, company_id: str) -> Oper
 
 def load_entry(company_id: str, entry_id: str) -> Optional[OperationalEmissionsResult]:
     path = _entry_path(company_id, entry_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return None
-    return OperationalEmissionsResult.model_validate(json.loads(path.read_text()))
+    return OperationalEmissionsResult.model_validate(raw)
 
 
 def list_entries(company_id: str) -> list[OperationalEmissionsResult]:
-    entries_dir = _entries_dir(company_id)
-    if not entries_dir.exists():
-        return []
-    entries = [
-        OperationalEmissionsResult.model_validate(json.loads(p.read_text()))
-        for p in entries_dir.glob("*.json")
-        if not p.name.endswith(".tmp")
-    ]
+    entries = [OperationalEmissionsResult.model_validate(raw) for raw in company_store.list_json_docs(_entries_dir(company_id))]
     return sorted(entries, key=lambda e: e.created_at, reverse=True)
 
 
 def delete_entry(company_id: str, entry_id: str) -> bool:
     path = _entry_path(company_id, entry_id)
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return company_store.delete_json(path)

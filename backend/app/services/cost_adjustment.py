@@ -3,7 +3,7 @@ rates.
 
 A raw BOQ rate is a HISTORICAL price from whenever that BOQ was priced --
 cost_estimation.py flags this, but doesn't correct it. This module
-attempts a correction, using Groq/Ollama (via llm_client.py) to estimate
+attempts a correction, using Groq (via llm_client.py) to estimate
 the approximate cumulative cost increase for each material category
 between the BOQ's pricing year and the current year.
 

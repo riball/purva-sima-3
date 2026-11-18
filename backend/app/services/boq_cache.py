@@ -29,7 +29,7 @@ def save_extraction(
     project_slug: str, extraction: dict, company_id: str = company_store.DEFAULT_COMPANY_ID
 ) -> Path:
     cache_dir = company_store.reference_projects_cache_dir(company_id)
-    cache_dir.mkdir(parents=True, exist_ok=True)
+    company_store.ensure_dir(cache_dir)
     record = {
         "project_slug": project_slug,
         "extracted_at": datetime.now(timezone.utc).isoformat(),
@@ -39,20 +39,15 @@ def save_extraction(
     # Atomic write-then-rename -- see company_store.atomic_write_json's
     # docstring (part of the backend-wide fix for the truncated-file race
     # a concurrency stress test reproduced live in this app).
-    company_store.atomic_write_json(path, record)
+    company_store.write_json(path, record)
     return path
 
 
 def load_extraction(project_slug: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> Optional[dict]:
     path = company_store.reference_projects_cache_dir(company_id) / f"{project_slug}.json"
-    if not path.exists():
-        return None
-    with open(path, "r") as f:
-        return json.load(f)
+    return company_store.read_json(path)
 
 
 def list_cached_projects(company_id: str = company_store.DEFAULT_COMPANY_ID) -> list[str]:
     cache_dir = company_store.reference_projects_cache_dir(company_id)
-    if not cache_dir.exists():
-        return []
-    return [p.stem for p in cache_dir.glob("*.json")]
+    return company_store.list_json_stems(cache_dir)

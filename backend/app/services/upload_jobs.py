@@ -45,14 +45,14 @@ def _save_full_result(company_id: str, job_id: str, result: BoqCarbonResult | Wo
     # docstring (part of the backend-wide fix for the truncated-file race
     # a concurrency stress test reproduced live in this app).
     path = _result_path(company_id, job_id)
-    company_store.atomic_write_json(path, result.model_dump(mode="json"))
+    company_store.write_json(path, result.model_dump(mode="json"), indent=None)
 
 
 def load_full_result(company_id: str, job_id: str, kind: str):
     path = _result_path(company_id, job_id)
-    if not path.exists():
+    data = company_store.read_json(path)
+    if data is None:
         return None
-    data = json.loads(path.read_text())
     return BoqCarbonResult.model_validate(data) if kind == "boq" else WoCarbonResult.model_validate(data)
 
 
@@ -183,11 +183,10 @@ def run_wo_job(
 ) -> None:
     job_store.mark_running(company_id, job_id)
     try:
-        master_path = company_store.master_item_codes_path(company_id)
-        if not master_path.exists():
-            raise ValueError(f"Master item-code dataset not found for company '{company_id}'.")
-
-        result = calculate_from_work_order(tmp_path, str(master_path), floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis)
+        with company_store.master_item_codes_file(company_id) as master_path:
+            if master_path is None:
+                raise ValueError(f"Master item-code dataset not found for company '{company_id}'.")
+            result = calculate_from_work_order(tmp_path, str(master_path), floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis)
         if result.n_line_items_parsed == 0:
             raise ValueError("Could not extract any line items from this PDF -- it may be a scanned/image-only document.")
         result.source_file = original_filename

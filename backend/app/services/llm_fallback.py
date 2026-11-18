@@ -1,8 +1,8 @@
 """LLM-based fallback fill for Tier 2 / Tier 3 fields that are still
 "unset" after BOQ matching.
 
-Calls through app.services.llm_client, which routes to either a local
-Ollama server or the Groq API depending on LLM_PROVIDER in .env.
+Calls through app.services.llm_client, which calls the Groq API
+(LLM_PROVIDER / GROQ_API_KEY in .env).
 
 Enum coercion: fields backed by an Enum in the schema (typology,
 foundation_type, finish_spec_level, mep_complexity, site_condition,

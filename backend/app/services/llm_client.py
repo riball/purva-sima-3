@@ -3,13 +3,9 @@
 Both llm_fallback.py (tier-field estimation) and boq_extractor.py
 (ambiguous-row resolution) call through chat_json() instead of each
 having their own provider-specific code. Provider is chosen by
-LLM_PROVIDER in .env -- "ollama" (local) or "groq" (API) -- with no
-changes needed in either caller when you switch.
-
-Local (Ollama) has no per-call cost and keeps data on-device, but is
-slow for high call-volume tasks like BOQ ambiguous-row batching on
-limited VRAM. Groq is fast but needs an internet connection and a
-valid API key. Pick per-situation via .env, not hardcoded.
+LLM_PROVIDER in .env (default and currently only provider: "groq").
+Groq needs an internet connection and a valid GROQ_API_KEY; without
+one every caller falls back to its own keyword/placeholder logic.
 """
 
 from __future__ import annotations
@@ -20,8 +16,6 @@ from app.core.config import (
     GROQ_API_KEY,
     GROQ_MODEL,
     LLM_PROVIDER,
-    OLLAMA_BASE_URL,
-    OLLAMA_MODEL,
 )
 
 
@@ -36,20 +30,6 @@ class LLMUnavailableError(Exception):
 
 def _strip_json_fences(text: str) -> str:
     return text.replace("```json", "").replace("```", "").strip()
-
-
-def _call_ollama(prompt: str) -> dict:
-    import ollama
-
-    client = ollama.Client(host=OLLAMA_BASE_URL)
-    response = client.chat(
-        model=OLLAMA_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        format="json",
-        options={"temperature": 0.1},
-    )
-    text = _strip_json_fences(response["message"]["content"].strip())
-    return json.loads(text)
 
 
 def _call_groq(prompt: str) -> dict:
@@ -78,7 +58,5 @@ def chat_json(prompt: str) -> dict:
     """
     if LLM_PROVIDER == "groq":
         return _call_groq(prompt)
-    elif LLM_PROVIDER == "ollama":
-        return _call_ollama(prompt)
     else:
-        raise LLMUnavailableError(f"Unknown LLM_PROVIDER '{LLM_PROVIDER}' -- must be 'ollama' or 'groq'")
+        raise LLMUnavailableError(f"Unknown LLM_PROVIDER '{LLM_PROVIDER}' -- must be 'groq'")

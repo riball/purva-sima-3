@@ -337,9 +337,10 @@ def _load_current_state(company_id: str, project_id: str) -> AnyCarbonResult:
 
 def _load_recommendations(company_id: str, project_id: str) -> list[Recommendation]:
     path = company_store.phase4_recommendations_path(company_id, project_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return []
-    return [Recommendation.model_validate(r) for r in json.loads(path.read_text())]
+    return [Recommendation.model_validate(r) for r in raw]
 
 
 def _save_recommendations(company_id: str, project_id: str, recs: list[Recommendation]) -> None:
@@ -350,7 +351,7 @@ def _save_recommendations(company_id: str, project_id: str, recs: list[Recommend
     # and crash with a JSONDecodeError -- caught live by a concurrency
     # stress test against this app's other JSON stores.
     path = company_store.phase4_recommendations_path(company_id, project_id)
-    company_store.atomic_write_json(path, [r.model_dump(mode="json") for r in recs])
+    company_store.write_json(path, [r.model_dump(mode="json") for r in recs])
 
 
 def list_recommendations(company_id: str, project_id: str, status: Optional[RecommendationStatus] = None) -> list[Recommendation]:
@@ -374,9 +375,10 @@ def get_recommendation(company_id: str, project_id: str, recommendation_id: str)
 
 def _load_audit_log(company_id: str, project_id: str) -> list[AuditLogEntry]:
     path = company_store.phase4_audit_log_path(company_id, project_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return []
-    return [AuditLogEntry.model_validate(e) for e in json.loads(path.read_text())]
+    return [AuditLogEntry.model_validate(e) for e in raw]
 
 
 def _append_audit_entry(company_id: str, project_id: str, entry: AuditLogEntry) -> None:
@@ -387,7 +389,7 @@ def _append_audit_entry(company_id: str, project_id: str, entry: AuditLogEntry) 
     # plain write_text() left the same truncated-file race the stress
     # test reproduced elsewhere in this app.
     path = company_store.phase4_audit_log_path(company_id, project_id)
-    company_store.atomic_write_json(path, [e.model_dump(mode="json") for e in log])
+    company_store.write_json(path, [e.model_dump(mode="json") for e in log])
 
 
 def list_audit_log(company_id: str, project_id: str) -> list[AuditLogEntry]:

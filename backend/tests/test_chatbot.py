@@ -18,7 +18,7 @@ changes" -- which first requires it to exist.
 Isolated the same way tests/test_phase3.py already established: every
 test redirects company_store.COMPANIES_DIR to a pytest tmp_path. No test
 here depends on a live LLM provider being configured -- this sandbox has
-none (LLM_PROVIDER=ollama with no `ollama` package installed), so every
+none (no GROQ_API_KEY configured), so every
 answer_question()/parse_question() call already exercises the real,
 deterministic keyword-fallback / context-summary-fallback paths this file
 means to cover, not a mocked-out LLM call.

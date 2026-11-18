@@ -54,7 +54,7 @@ def save_project(project: ProjectSchema) -> None:
     # that window (e.g. two review-step corrections saved close
     # together) could read this file back empty and crash with a
     # JSONDecodeError. Reproduced live under a concurrency stress test.
-    company_store.atomic_write_json(path, data)
+    company_store.write_json(path, data)
 
     # UX refinement: keep the named-project registry (project_registry.py)
     # in sync automatically whenever a Phase 1 record carries a name --
@@ -71,10 +71,9 @@ def save_project(project: ProjectSchema) -> None:
 
 def load_project(project_id: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> Optional[ProjectSchema]:
     path = company_store.projects_dir(company_id) / f"{project_id}.json"
-    if not path.exists():
+    data = company_store.read_json(path)
+    if data is None:
         return None
-    with open(path, "r") as f:
-        data = json.load(f)
     derived = data.pop("_derived", {})
     project = ProjectSchema.model_validate(data)
     project.__dict__["_derived"] = derived
@@ -83,14 +82,8 @@ def load_project(project_id: str, company_id: str = company_store.DEFAULT_COMPAN
 
 def delete_project(project_id: str, company_id: str = company_store.DEFAULT_COMPANY_ID) -> bool:
     path = company_store.projects_dir(company_id) / f"{project_id}.json"
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return company_store.delete_json(path)
 
 
 def list_project_ids(company_id: str = company_store.DEFAULT_COMPANY_ID) -> list[str]:
-    projects_dir = company_store.projects_dir(company_id)
-    if not projects_dir.exists():
-        return []
-    return [p.stem for p in projects_dir.glob("*.json")]
+    return company_store.list_json_stems(company_store.projects_dir(company_id))

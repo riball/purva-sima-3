@@ -46,12 +46,14 @@ uploaded.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 # The one company this project has ever served. Every existing project
 # record, reference project, and the existing master_item_code_factors.json
@@ -255,10 +257,105 @@ def atomic_write_json(path: Path, data: Any, *, indent: int = 2, sort_keys: bool
     raise last_err
 
 
+# --------------------------------------------------------------------------
+# Storage access. Everything below is the ONLY door to persisted documents:
+# local JSON files by default, or a Postgres/Supabase `documents` table when
+# DATABASE_URL is set (see doc_store.py and db/schema.sql). The *_path()
+# helpers above stay the single source of truth for WHERE a document lives;
+# they are turned into storage keys here, so callers keep passing Paths.
+# --------------------------------------------------------------------------
+_backend: Any = None
+
+
+def get_backend() -> Any:
+    global _backend
+    if _backend is None:
+        from app.core import config
+        from app.services import doc_store
+
+        if config.DATABASE_URL:
+            _backend = doc_store.PostgresBackend(config.DATABASE_URL)
+        else:
+            _backend = doc_store.FileBackend(lambda: COMPANIES_DIR.parent)
+    return _backend
+
+
+def set_backend(backend: Any) -> None:
+    """Swap the storage backend (tests, migration script). None = re-detect."""
+    global _backend
+    _backend = backend
+
+
+def storage_key(path: Path) -> str:
+    return Path(path).relative_to(COMPANIES_DIR.parent).as_posix()
+
+
+def read_json(path: Path) -> Any:
+    """The document at `path`, or None if it does not exist."""
+    return get_backend().read(storage_key(path))
+
+
+def json_exists(path: Path) -> bool:
+    return get_backend().exists(storage_key(path))
+
+
+def write_json(path: Path, data: Any, *, indent: int = 2, sort_keys: bool = False) -> None:
+    get_backend().write(storage_key(path), data, indent=indent, sort_keys=sort_keys)
+
+
+def delete_json(path: Path) -> bool:
+    return get_backend().delete(storage_key(path))
+
+
+def delete_tree(path: Path) -> bool:
+    """Delete a document or a whole folder of them."""
+    return get_backend().delete_prefix(storage_key(path))
+
+
+def list_json_stems(directory: Path) -> list[str]:
+    """File stems of the *.json documents directly inside `directory`."""
+    return [k.rsplit("/", 1)[-1][: -len(".json")] for k in get_backend().list_keys(storage_key(directory), ".json")]
+
+
+def list_json_docs(directory: Path, exclude_suffix: Optional[str] = None) -> list[Any]:
+    """Parsed *.json documents directly inside `directory`, in key order.
+    `exclude_suffix` skips (without reading) keys ending with it."""
+    return [d for _k, d in get_backend().read_many(storage_key(directory), ".json", exclude_suffix)]
+
+
+def list_subdirs(directory: Path) -> list[str]:
+    return get_backend().list_subdirs(storage_key(directory))
+
+
+def ensure_dir(path: Path) -> None:
+    get_backend().ensure_dir(storage_key(path))
+
+
+@contextlib.contextmanager
+def master_item_codes_file(company_id: str, override: Optional[str] = None):
+    """Yield a real filesystem Path holding the company's master item codes,
+    or None if the company has none. The calculation engines read this file
+    by path; with database storage the document is written to a temporary
+    file for the duration of the call. `override` is an explicit file path
+    (the dev-only master_json_path form field), used as-is when it exists."""
+    if override:
+        yield Path(override) if Path(override).exists() else None
+        return
+    key_path = master_item_codes_path(company_id)
+    data = read_json(key_path)
+    if data is None:
+        yield None
+        return
+    if get_backend().name == "file":
+        yield key_path
+        return
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d) / "master_item_codes.json"
+        tmp.write_text(json.dumps(data), encoding="utf-8")
+        yield tmp
+
+
 def list_company_ids() -> list[str]:
-    """Every company with at least one file under data/companies/ --
-    not a registry of "valid" companies, just what's actually on disk.
-    """
-    if not COMPANIES_DIR.exists():
-        return []
-    return sorted(p.name for p in COMPANIES_DIR.iterdir() if p.is_dir())
+    """Every company with at least one stored document -- not a registry of
+    "valid" companies, just what actually exists in storage."""
+    return get_backend().list_subdirs(storage_key(COMPANIES_DIR))

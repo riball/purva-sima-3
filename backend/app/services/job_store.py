@@ -72,10 +72,7 @@ def _job_path(company_id: str, job_id: str) -> Path:
 
 
 def _write_atomic(path: Path, data: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f".{uuid.uuid4().hex[:8]}.tmp")
-    tmp_path.write_text(json.dumps(data, indent=2))
-    os.replace(tmp_path, path)  # atomic on every OS this runs on
+    company_store.write_json(path, data)
 
 
 def create_job(company_id: str, kind: JobKind, source_filename: str) -> JobRecord:
@@ -127,9 +124,10 @@ def set_project_id(company_id: str, job_id: str, project_id: str) -> JobRecord:
 
 def load_job(company_id: str, job_id: str) -> Optional[JobRecord]:
     path = _job_path(company_id, job_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return None
-    return JobRecord.model_validate(json.loads(path.read_text()))
+    return JobRecord.model_validate(raw)
 
 
 def delete_job(company_id: str, job_id: str) -> bool:
@@ -149,13 +147,8 @@ def delete_job(company_id: str, job_id: str) -> bool:
     app/api/projects.py's delete_project already follows)."""
     job_path = _job_path(company_id, job_id)
     result_path = job_path.with_name(f"{job_id}_result.json")
-    removed = False
-    if job_path.exists():
-        job_path.unlink()
-        removed = True
-    if result_path.exists():
-        result_path.unlink()
-        removed = True
+    removed = company_store.delete_json(job_path)
+    removed = company_store.delete_json(result_path) or removed
     return removed
 
 
@@ -175,13 +168,9 @@ def list_jobs(company_id: str, active_only: bool = False) -> list[JobRecord]:
     here is the fix; a JobRecord's own filename is always exactly
     "<job_id>.json", never with that suffix.
     """
-    jobs_dir = _jobs_dir(company_id)
-    if not jobs_dir.exists():
-        return []
     jobs = [
-        JobRecord.model_validate(json.loads(p.read_text()))
-        for p in jobs_dir.glob("*.json")
-        if not p.name.endswith(".tmp") and not p.name.endswith("_result.json")
+        JobRecord.model_validate(raw)
+        for raw in company_store.list_json_docs(_jobs_dir(company_id), exclude_suffix="_result.json")
     ]
     if active_only:
         jobs = [j for j in jobs if j.status in ("queued", "running")]

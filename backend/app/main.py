@@ -1,5 +1,7 @@
 """FastAPI entrypoint for the conceptual carbon calculator backend."""
 from fastapi import FastAPI
+import os
+
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import boq_carbon, boq_carbon_substitute, calculate, companies, factors, form, onboarding, operational_emissions, phase3, phase4, projects, refine, substitute, swap_sandbox, uploads, wo_carbon
@@ -11,9 +13,12 @@ app = FastAPI(title="Sima API")
 # CORS error before it even reaches these routes, regardless of whether
 # the routes themselves are correct.
 # Add your production frontend's origin here too once deployed.
+# Extra allowed origins for a deployed frontend: CORS_ORIGINS="https://my-app.vercel.app,https://other.example"
+_EXTRA_ORIGINS = [o.strip().rstrip("/") for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173",
+    allow_origins=_EXTRA_ORIGINS + ["http://localhost:5173",
                    "http://192.168.1.6:5173",
                    "http://127.0.0.1:5173",
                    # carbo-front (the current frontend) defaults to port 3000

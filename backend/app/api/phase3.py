@@ -149,17 +149,15 @@ async def record_baseline(
             # onto later. WO-sourced baselines get this too, below.
             phase3.save_source_result(company_id, project_id, result)
         else:
-            resolved_master_path = (
-                Path(master_json_path) if master_json_path else company_store.master_item_codes_path(company_id)
-            )
-            if not resolved_master_path.exists():
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Master item-code dataset not found for company '{company_id}' at {resolved_master_path}",
+            with company_store.master_item_codes_file(company_id, master_json_path) as resolved_master_path:
+                if resolved_master_path is None:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Master item-code dataset not found for company '{company_id}'",
+                    )
+                result = calculate_from_work_order(
+                    str(tmp_path), str(resolved_master_path), floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis
                 )
-            result = calculate_from_work_order(
-                str(tmp_path), str(resolved_master_path), floor_area_sqm=floor_area_sqm, floor_area_basis=floor_area_basis
-            )
             if result.n_line_items_parsed == 0:
                 raise HTTPException(
                     status_code=422,
@@ -252,13 +250,13 @@ async def upload_bill(
             # docstring). Still the SAME BillPeriod/compute_dashboard()
             # every xlsx-sourced bill goes through -- one baseline, one
             # dashboard, whichever format a given quarter's bill is.
-            master_path = company_store.master_item_codes_path(company_id)
-            if not master_path.exists():
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Master item-code dataset not found for company '{company_id}' at {master_path}",
-                )
-            cop_result = calculate_from_cop_pdf(str(tmp_path), str(master_path), quantity_basis=quantity_basis)
+            with company_store.master_item_codes_file(company_id) as master_path:
+                if master_path is None:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Master item-code dataset not found for company '{company_id}'",
+                    )
+                cop_result = calculate_from_cop_pdf(str(tmp_path), str(master_path), quantity_basis=quantity_basis)
             if cop_result.n_lines_total == 0:
                 raise HTTPException(
                     status_code=422,

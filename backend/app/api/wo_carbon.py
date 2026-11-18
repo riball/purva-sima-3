@@ -61,6 +61,7 @@ future work, not attempted here.
 
 from __future__ import annotations
 
+import contextlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -126,13 +127,15 @@ async def calculate_wo_carbon(
                 "Phase 1 matching filters on these, so they can't be left unset or guessed.",
             )
 
-    resolved_master_path = (
-        Path(master_json_path) if master_json_path else company_store.master_item_codes_path(company_id)
-    )
-    if not resolved_master_path.exists():
+    # With database storage the master item codes live in the DB; the engine
+    # reads them by file path, so they are written to a temp file for this call.
+    master_stack = contextlib.ExitStack()
+    resolved_master_path = master_stack.enter_context(company_store.master_item_codes_file(company_id, master_json_path))
+    if resolved_master_path is None:
+        master_stack.close()
         raise HTTPException(
             status_code=500,
-            detail=f"Master item-code dataset not found for company '{company_id}' at {resolved_master_path}",
+            detail=f"Master item-code dataset not found for company '{company_id}'",
         )
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
@@ -188,6 +191,7 @@ async def calculate_wo_carbon(
         # (corrupt file, or not actually a PDF despite the extension).
         raise HTTPException(status_code=400, detail=f"Could not read this file as a PDF: {e}")
     finally:
+        master_stack.close()
         try:
             tmp_path.unlink(missing_ok=True)
         except OSError as e:

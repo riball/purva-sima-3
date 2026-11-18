@@ -38,8 +38,7 @@ Confidence tiers:
   quantity column (by fixed position) holds a plausible positive number.
 - LLM-assisted: rows whose unit doesn't match the current category, or
   whose quantity column value isn't plausible, are batched through
-  llm_client.chat_json() (routes to whichever provider is configured --
-  local Ollama or Groq API).
+  llm_client.chat_json() (Groq API).
 - Unclassified: rows the LLM also can't resolve are left OUT of totals
   entirely -- for extraction, a silent gap is safer than a fabricated
   number.

@@ -70,9 +70,9 @@ def slugify_company_id(name: str) -> str:
 
 
 def _load_registry() -> dict[str, CompanyMeta]:
-    if not _REGISTRY_PATH.exists():
+    raw = company_store.read_json(_REGISTRY_PATH)
+    if raw is None:
         return {}
-    raw = json.loads(_REGISTRY_PATH.read_text())
     return {cid: CompanyMeta(**meta) for cid, meta in raw.items()}
 
 
@@ -80,7 +80,7 @@ def _save_registry(registry: dict[str, CompanyMeta]) -> None:
     # Atomic write-then-rename -- see company_store.atomic_write_json's
     # docstring (part of the backend-wide fix for the truncated-file race
     # a concurrency stress test reproduced live in this app).
-    company_store.atomic_write_json(_REGISTRY_PATH, {cid: meta.model_dump() for cid, meta in registry.items()})
+    company_store.write_json(_REGISTRY_PATH, {cid: meta.model_dump() for cid, meta in registry.items()})
 
 
 def create_company(display_name: str, company_id: Optional[str] = None) -> CompanyMeta:
@@ -120,7 +120,7 @@ def create_company(display_name: str, company_id: Optional[str] = None) -> Compa
     # registry-file loss, or a caller that only ever reads the
     # directory listing) even before any project/bill/onboarding job is
     # ever saved under it.
-    company_store.company_dir(resolved_id).mkdir(parents=True, exist_ok=True)
+    company_store.ensure_dir(company_store.company_dir(resolved_id))
     return meta
 
 

@@ -103,9 +103,9 @@ def _registry_path(company_id: str):
 
 def _load_registry(company_id: str) -> dict[str, ProjectNameEntry]:
     path = _registry_path(company_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return {}
-    raw = json.loads(path.read_text())
     return {pid: ProjectNameEntry(**entry) for pid, entry in raw.items()}
 
 
@@ -120,7 +120,7 @@ def _save_registry(company_id: str, registry: dict[str, ProjectNameEntry]) -> No
     # and crashed with json.JSONDecodeError (a real 500, reproduced
     # live, not theoretical).
     path = _registry_path(company_id)
-    company_store.atomic_write_json(path, {pid: entry.model_dump() for pid, entry in registry.items()})
+    company_store.write_json(path, {pid: entry.model_dump() for pid, entry in registry.items()})
 
 
 def register_project(company_id: str, project_id: str, project_name: str) -> ProjectNameEntry:
@@ -323,12 +323,8 @@ def list_named_projects(company_id: str) -> list[dict]:
 
     all_ids: set[str] = set(registry.keys())
     projects_root = company_store.projects_dir(company_id)
-    if projects_root.exists():
-        for entry in projects_root.iterdir():
-            if entry.is_dir():
-                all_ids.add(entry.name)
-            elif entry.suffix == ".json":
-                all_ids.add(entry.stem)
+    all_ids.update(company_store.list_subdirs(projects_root))
+    all_ids.update(company_store.list_json_stems(projects_root))
 
     now = datetime.now(timezone.utc).isoformat()
     for project_id in all_ids:

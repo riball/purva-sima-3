@@ -308,12 +308,8 @@ def list_projects(company_id: str) -> list[ProjectSummary]:
     """
     projects_root = company_store.projects_dir(company_id)
     project_ids: set[str] = set()
-    if projects_root.exists():
-        for entry in projects_root.iterdir():
-            if entry.is_dir():
-                project_ids.add(entry.name)  # has Phase 3 data (baseline and/or bills)
-            elif entry.suffix == ".json":
-                project_ids.add(entry.stem)  # a Phase 1 record only
+    project_ids.update(company_store.list_subdirs(projects_root))  # has Phase 3 data (baseline and/or bills)
+    project_ids.update(company_store.list_json_stems(projects_root))  # a Phase 1 record only
 
     # UX refinement: the project_registry is the canonical name source
     # when it has an entry (it's kept in sync by save_project()/
@@ -410,7 +406,7 @@ def save_baseline(baseline: Phase3Baseline) -> None:
     # crash with a JSONDecodeError -- caught live by a concurrency stress
     # test against this app's other JSON stores.
     path = company_store.phase3_baseline_path(baseline.company_id, baseline.project_id)
-    company_store.atomic_write_json(path, baseline.model_dump(mode="json"))
+    company_store.write_json(path, baseline.model_dump(mode="json"))
 
     # UX refinement: same registration hook as project_store.save_project()
     # -- a project that gets its name for the first time via a Phase 2/3
@@ -425,9 +421,10 @@ def save_baseline(baseline: Phase3Baseline) -> None:
 
 def load_baseline(company_id: str, project_id: str) -> Optional[Phase3Baseline]:
     path = company_store.phase3_baseline_path(company_id, project_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return None
-    return Phase3Baseline.model_validate(json.loads(path.read_text()))
+    return Phase3Baseline.model_validate(raw)
 
 
 def delete_project_data(company_id: str, project_id: str) -> bool:
@@ -443,13 +440,7 @@ def delete_project_data(company_id: str, project_id: str) -> bool:
     project never had any Phase 3 data to begin with -- e.g. a Phase
     1-only project being deleted.
     """
-    import shutil
-
-    directory = company_store.project_dir(company_id, project_id)
-    if not directory.exists():
-        return False
-    shutil.rmtree(directory)
-    return True
+    return company_store.delete_tree(company_store.project_dir(company_id, project_id))
 
 
 def save_source_result(company_id: str, project_id: str, result: "BoqCarbonResult | WoCarbonResult") -> None:
@@ -470,7 +461,7 @@ def save_source_result(company_id: str, project_id: str, result: "BoqCarbonResul
     # both read this file; a plain write_text() left a window where one
     # could observe a truncated/empty file mid-write.
     path = company_store.phase3_source_result_path(company_id, project_id)
-    company_store.atomic_write_json(path, result.model_dump(mode="json"))
+    company_store.write_json(path, result.model_dump(mode="json"))
 
 
 def load_source_result(company_id: str, project_id: str) -> Optional["BoqCarbonResult | WoCarbonResult"]:
@@ -480,9 +471,9 @@ def load_source_result(company_id: str, project_id: str) -> Optional["BoqCarbonR
     to be made explicitly, rather than guessing from shape.
     """
     path = company_store.phase3_source_result_path(company_id, project_id)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return None
-    raw = json.loads(path.read_text())
     baseline = load_baseline(company_id, project_id)
     if baseline is not None and baseline.source_type == "wo":
         return WoCarbonResult.model_validate(raw)
@@ -491,21 +482,22 @@ def load_source_result(company_id: str, project_id: str) -> Optional["BoqCarbonR
 
 def save_bill_period(bill: BillPeriod, overwrite: bool = False) -> None:
     path = company_store.project_bill_path(bill.company_id, bill.project_id, bill.period)
-    if path.exists() and not overwrite:
+    if company_store.json_exists(path) and not overwrite:
         raise ValueError(
             f"A bill for period '{bill.period}' already exists for project '{bill.project_id}' -- "
             f"pass overwrite=True to replace it, or use a different period label."
         )
     # Atomic write-then-rename -- see company_store.atomic_write_json's
     # docstring.
-    company_store.atomic_write_json(path, bill.model_dump(mode="json"))
+    company_store.write_json(path, bill.model_dump(mode="json"))
 
 
 def load_bill_period(company_id: str, project_id: str, period: str) -> Optional[BillPeriod]:
     path = company_store.project_bill_path(company_id, project_id, period)
-    if not path.exists():
+    raw = company_store.read_json(path)
+    if raw is None:
         return None
-    return BillPeriod.model_validate(json.loads(path.read_text()))
+    return BillPeriod.model_validate(raw)
 
 
 def delete_bill_period(company_id: str, project_id: str, period: str) -> bool:
@@ -523,10 +515,7 @@ def delete_bill_period(company_id: str, project_id: str, period: str) -> bool:
     already follows.
     """
     path = company_store.project_bill_path(company_id, project_id, period)
-    if not path.exists():
-        return False
-    path.unlink()
-    return True
+    return company_store.delete_json(path)
 
 
 def list_bill_periods(company_id: str, project_id: str) -> list[BillPeriod]:
@@ -553,9 +542,7 @@ def list_bill_periods(company_id: str, project_id: str) -> list[BillPeriod]:
     bills that happen to share a date, instead of an arbitrary one.
     """
     bills_dir = company_store.project_bills_dir(company_id, project_id)
-    if not bills_dir.exists():
-        return []
-    bills = [BillPeriod.model_validate(json.loads(p.read_text())) for p in bills_dir.glob("*.json")]
+    bills = [BillPeriod.model_validate(raw) for raw in company_store.list_json_docs(bills_dir)]
     return sorted(bills, key=lambda b: (b.billed_date, b.recorded_at))
 
 
