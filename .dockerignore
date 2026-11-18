@@ -1,0 +1,21 @@
+.git
+**/node_modules
+**/venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/*.bak
+**/*.bak_*
+**/*.zip
+**/.env
+**/.env.*
+!**/.env.example
+frontend/dist
+backend/tests
+backend/docs
+# Editable data lives in the database (DATABASE_URL), not in the image. Static reference
+# data (backend/app/data/ice_db) IS needed, so only the editable parts are excluded.
+backend/app/data/companies
+backend/app/data/companies_registry.json
+backend/app/data/canonical_material_categories.json

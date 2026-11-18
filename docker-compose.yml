@@ -1,9 +1,9 @@
-# Run the whole app:   docker compose up --build
-#   frontend -> http://localhost:3000      backend API -> http://localhost:8000/docs
+# Run the whole app (API + web app in ONE container):   docker compose up --build
+#   -> http://localhost:8000        API docs -> http://localhost:8000/api/docs
 #
 # Configuration comes from backend/.env (copy backend/.env.example): GROQ_API_KEY, DATABASE_URL.
 #
-# Data lives in a database, not in the containers. Two options:
+# Data lives in a database, not in the container. Two options:
 #   A) Supabase: put its Session-pooler URI in DATABASE_URL (see README).
 #   B) A local Postgres bundled here:
 #        1. in backend/.env set  DATABASE_URL=postgresql://sima:sima@db:5432/sima
@@ -11,28 +11,13 @@
 #      (the table is created automatically from backend/db/schema.sql on first start)
 
 services:
-  backend:
-    build: ./backend
+  app:
+    build: .
     env_file:
       - path: ./backend/.env
         required: false
-    environment:
-      # Browser origin of the frontend, for CORS.
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
     ports:
       - "8000:8000"
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        # Address the BROWSER uses to reach the API (not a container name).
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
-    depends_on:
-      - backend
-    ports:
-      - "3000:80"
     restart: unless-stopped
 
   db:
