@@ -1,0 +1,145 @@
+# Build the image, push it to this project's Azure registry and roll it out to
+# the container app. Settings (secrets, env vars, size) are never touched here:
+# deploy/azure.sh owns them.
+#
+# All values come from deploy/azure-deploy.conf (no GitHub variables or
+# secrets). Until deploy/azure.sh and deploy/github-setup.sh have filled it
+# in, this workflow finishes quietly with a notice.
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/app/**"
+      - "backend/db/**"
+      - "backend/requirements.txt"
+      - "frontend/**"
+      - "deploy/Dockerfile"
+      - "deploy/Dockerfile.dockerignore"
+      - "deploy/azure-deploy.conf"
+      - ".github/workflows/azure.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: azure-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read deploy/azure-deploy.conf
+        id: conf
+        shell: bash
+        run: |
+          set -euo pipefail
+          conf=deploy/azure-deploy.conf
+          get() {
+            awk -v k="$1" '{ sub(/\r$/, "") } /^[ \t]*#/ { next } index($0, "=") == 0 { next }
+              { key = substr($0, 1, index($0, "=") - 1); gsub(/^[ \t]+|[ \t]+$/, "", key)
+                if (key == k) { v = substr($0, index($0, "=") + 1); gsub(/^[ \t]+|[ \t]+$/, "", v); val = v } }
+              END { print val }' "$conf"
+          }
+          app="$(get APP_NAME)"; sub="$(get AZURE_SUBSCRIPTION_ID)"; tenant="$(get AZURE_TENANT_ID)"
+          client="$(get AZURE_CLIENT_ID)"; acr="$(get ACR_NAME)"; health="$(get HEALTH_PATH)"
+
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::notice::Deploys run only from main (this is ${GITHUB_REF}); skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          missing=""
+          for k in app sub tenant client acr; do [ -n "${!k}" ] || missing="$missing $k"; done
+          if [ -n "$missing" ]; then
+            echo "::notice::Azure isn't set up yet (empty in $conf:$missing). Run deploy/azure.sh and deploy/github-setup.sh (see deploy/AZURE.md). Skipping."
+            echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          guid='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+          echo "$app" | grep -Eq '^[a-z][a-z0-9-]{0,31}$' || { echo "::error::bad APP_NAME"; exit 1; }
+          echo "$acr" | grep -Eq '^[a-z0-9]{5,50}$' || { echo "::error::bad ACR_NAME"; exit 1; }
+          for v in "$sub" "$tenant" "$client"; do echo "$v" | grep -Eq "$guid" || { echo "::error::bad ID in $conf"; exit 1; }; done
+          case "$health" in /*) ;; *) health=/ ;; esac
+
+          {
+            echo "ready=true"
+            echo "app=$app"
+            echo "sub=$sub"
+            echo "tenant=$tenant"
+            echo "client=$client"
+            echo "acr=$acr"
+            echo "health=$health"
+            echo "image=$acr.azurecr.io/$app:$(git rev-parse --short=12 HEAD)-${GITHUB_RUN_ATTEMPT}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Sign in to Azure (OIDC, no stored secret)
+        if: steps.conf.outputs.ready == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ steps.conf.outputs.client }}
+          tenant-id: ${{ steps.conf.outputs.tenant }}
+          subscription-id: ${{ steps.conf.outputs.sub }}
+
+      - name: Build image
+        if: steps.conf.outputs.ready == 'true'
+        env:
+          IMAGE: ${{ steps.conf.outputs.image }}
+        run: docker build --platform linux/amd64 -f deploy/Dockerfile -t "$IMAGE" .
+
+      - name: Push image
+        if: steps.conf.outputs.ready == 'true'
+        env:
+          ACR: ${{ steps.conf.outputs.acr }}
+          IMAGE: ${{ steps.conf.outputs.image }}
+        run: |
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+          az acr login --name "$ACR"
+          docker push "$IMAGE"
+
+      - name: Roll out the new image
+        if: steps.conf.outputs.ready == 'true'
+        env:
+          APP: ${{ steps.conf.outputs.app }}
+          IMAGE: ${{ steps.conf.outputs.image }}
+        run: az containerapp update --name "$APP" --resource-group "$APP" --image "$IMAGE" -o none
+
+      - name: Wait until the new revision is ready and healthy (up to 5 minutes)
+        if: steps.conf.outputs.ready == 'true'
+        env:
+          APP: ${{ steps.conf.outputs.app }}
+          IMAGE: ${{ steps.conf.outputs.image }}
+          HEALTH: ${{ steps.conf.outputs.health }}
+        run: |
+          set -uo pipefail
+          deadline=$(( $(date +%s) + 300 ))
+          while :; do
+            j="$(az containerapp show --name "$APP" --resource-group "$APP" -o json 2>/dev/null || echo '{}')"
+            latest="$(echo "$j" | jq -r '.properties.latestRevisionName // ""')"
+            ready="$(echo "$j" | jq -r '.properties.latestReadyRevisionName // ""')"
+            cur_image="$(echo "$j" | jq -r '.properties.template.containers[0].image // ""')"
+            fqdn="$(echo "$j" | jq -r '.properties.configuration.ingress.fqdn // ""')"
+            code=000
+            if [ -n "$latest" ] && [ "$latest" = "$ready" ] && [ "$cur_image" = "$IMAGE" ] && [ -n "$fqdn" ]; then
+              code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "https://$fqdn$HEALTH" || true)"
+              if [ "$code" = 200 ]; then
+                echo "Revision $latest is ready and https://$fqdn$HEALTH answers 200."
+                echo "### Deployed \`$IMAGE\` to https://$fqdn" >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+              fi
+            fi
+            echo "waiting: latest=$latest ready=$ready health=$code"
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Revision $latest did not become ready and healthy within 5 minutes."
+              az containerapp revision show --name "$APP" --resource-group "$APP" --revision "$latest" \
+                --query "{state:properties.runningState, health:properties.healthState, details:properties.runningStateDetails}" -o json || true
+              az containerapp logs show --name "$APP" --resource-group "$APP" --revision "$latest" --tail 50 --type console 2>/dev/null || true
+              exit 1
+            fi
+            sleep 10
+          done

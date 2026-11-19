@@ -1,0 +1,73 @@
+# Used automatically by "docker build -f deploy/Dockerfile ." (BuildKit picks
+# up <Dockerfile>.dockerignore next to the Dockerfile). Paths are relative to
+# the build context (the repository root). The repo's own .dockerignore is
+# NOT used for that build.
+
+# Version control and CI
+.git
+.github
+.gitignore
+.gitattributes
+
+# Secrets and local settings: never in the image (this includes
+# backend/.env.example, which holds a database URL)
+.env
+.env.*
+**/.env
+**/.env.*
+*.pem
+*.key
+
+# Deploy tooling (BuildKit reads deploy/Dockerfile separately)
+deploy/
+
+# Python leftovers, including the committed Windows venv
+**/venv/
+**/.venv/
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Backups and archives
+**/*.bak
+**/*.bak_*
+**/*.zip
+**/*.tmp
+
+# Tests and test helpers
+backend/tests/
+backend/pytest.ini
+**/test_*.py
+**/*_test.py
+
+# Local data, databases and logs. Editable data lives in the database
+# (DATABASE_URL); the static reference data in backend/app/data/ice_db,
+# cea_baseline, reference_boqs and work_orders IS needed and stays.
+# (Same exclusions as the repo's own .dockerignore.)
+backend/app/data/companies/
+backend/app/data/companies_registry.json
+backend/app/data/canonical_material_categories.json
+/data/
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/*.log
+logs/
+
+# Web app: node_modules and any local build are excluded; the image builds the
+# web app from frontend/ in its own stage
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+
+# Not needed by the server
+backend/docs/
+backend/scripts/
+*.md
+Dockerfile
+docker-compose.yml
+.DS_Store
+.vscode/
+.idea/

@@ -58,3 +58,7 @@ backend/app/data/companies_registry.json
 # Root-level sample/uploaded documents (real Certificate-of-Payment bill
 # PDFs) -- same reasoning: real project documents, not source code.
 /data/
+
+# Azure deploy settings with secrets (deploy/AZURE.md): never commit
+.env.azure
+.env.azure.bak
