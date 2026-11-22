@@ -9,7 +9,8 @@
 #   - identity <app>-github in group <app>, trusted for GitHub's OIDC tokens
 #     from main of this repo (both subject forms GitHub may send)
 #   - its roles, nothing more: Contributor on group <app>, AcrPush on this
-#     project's registry, and the shared "environment join" role on the shared
+#     project's registry (once moved: push to repository <app> in the shared
+#     registry only, see deploy/SHARED-REGISTRY.md), and the shared "environment join" role on the shared
 #     environment only (created once for all projects, reused otherwise)
 #   - AZURE_CLIENT_ID and AZURE_TENANT_ID in deploy/azure-deploy.conf
 # Pushing the config file afterwards starts the first deploy.
@@ -20,6 +21,8 @@ need az
 need jq
 need git
 load_conf
+. "$DEPLOY_DIR/shared-registry.sh"
+sr_load
 
 ISSUER="https://token.actions.githubusercontent.com"
 AUDIENCE="api://AzureADTokenExchange"
@@ -45,6 +48,11 @@ if [ "$(az_ group exists --name "$RG" 2>/dev/null)" != true ]; then
   [ "$DRY_RUN" = 1 ] || die "resource group $RG doesn't exist yet: run bash deploy/azure.sh first"
   info "(dry run) group $RG doesn't exist yet"
 fi
+if sr_uses_shared; then
+  sr_lookup || die "shared registry $SR_ACR not found in group $SR_ACR_RG. Run bash deploy/shared-registry-setup.sh once first (see deploy/SHARED-REGISTRY.md)."
+  ACR="$SR_ACR"; ACR_ID="$SR_ACR_ID"
+  info "registry: $SR_ACR (shared by every project; repository $SR_REPO)"
+else
 ACR_ID="$(az_ acr show --name "$ACR" --resource-group "$RG" -o json 2>/dev/null | jq -r '.id // empty' 2>/dev/null || true)"
 if [ -z "$ACR_ID" ]; then
   [ "$DRY_RUN" = 1 ] || die "registry $ACR doesn't exist yet: run bash deploy/azure.sh first"
@@ -52,6 +60,7 @@ if [ -z "$ACR_ID" ]; then
 fi
 conf_acr="$(conf_get ACR_NAME)"
 [ -z "$conf_acr" ] || [ "$conf_acr" = "$ACR" ] || die "ACR_NAME in $CONF_REL is '$conf_acr' but this project's registry is '$ACR'"
+fi
 
 # ---------------------------------------------------------------------------
 # GitHub's OIDC subject (both forms)
@@ -167,7 +176,11 @@ fi
 # ---------------------------------------------------------------------------
 say "Roles for $DEPLOY_IDENTITY"
 grant Contributor "$RG_ID" "$PRINCIPAL" "Contributor on group $RG"
-grant AcrPush "$ACR_ID" "$PRINCIPAL" "AcrPush on registry $ACR"
+if sr_uses_shared; then
+  sr_grant_push "$PRINCIPAL"
+else
+  grant AcrPush "$ACR_ID" "$PRINCIPAL" "AcrPush on registry $ACR"
+fi
 grant "$ROLE_REF" "$ENV_ID" "$PRINCIPAL" "environment join on $ENV_NAME (only)"
 
 # ---------------------------------------------------------------------------

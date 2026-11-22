@@ -8,11 +8,14 @@
 # Run it again after editing .env.azure to update the app's settings.
 #
 # What it does (names come from deploy/azure-deploy.conf, never from the shell):
-#   - resource group <app> and container registry <app without dashes><8 hex>
+#   - resource group <app>; the registry is the SHARED one (SHARED_ACR_NAME,
+#     repository <app>) once ACR_NAME says so, otherwise this project's own
+#     <app without dashes><8 hex> (see deploy/SHARED-REGISTRY.md)
 #   - container app <app> in the SHARED environment (looked up, never changed)
 #   - every KEY_<project>=value line in .env.azure becomes the app secret
 #     <key>-<app> and the env var KEY=secretref:<key>-<app>, plus PORT=8080
-#   - the app pulls images from the registry with its own identity (AcrPull)
+#   - the app pulls images from the registry with its own identity (AcrPull,
+#     or Repository Reader on repository <app> in the shared registry)
 #   - writes ACR_NAME and BACKEND_URL into deploy/azure-deploy.conf
 # It never changes the image: GitHub Actions deploys images.
 set -euo pipefail
@@ -22,6 +25,8 @@ need az
 need jq
 need git
 load_conf
+. "$DEPLOY_DIR/shared-registry.sh"
+sr_load
 
 ENV_FILE="$REPO_DIR/.env.azure"
 [ "$DRY_RUN" = 1 ] && say "DRY RUN: nothing will be changed"
@@ -135,6 +140,11 @@ rg_exists() { [ "$(az_ group exists --name "$RG" 2>/dev/null)" = true ]; }
 rg_create() { run az_ group create --name "$RG" --location "$LOC" --tags "project=$APP" -o none; }
 ensure "resource group $RG" rg_exists rg_create
 
+if sr_uses_shared; then
+  say "Container registry $SR_ACR (shared by every project; this app's images: repository $SR_REPO)"
+  sr_lookup || die "shared registry $SR_ACR not found in group $SR_ACR_RG. Run bash deploy/shared-registry-setup.sh once first (see deploy/SHARED-REGISTRY.md)."
+  ACR="$SR_ACR"; ACR_ID="$SR_ACR_ID"; ACR_SERVER="$SR_ACR_SERVER"
+else
 say "Container registry $ACR"
 ACR_JSON=""
 acr_exists() { ACR_JSON="$(az_ acr show --name "$ACR" --resource-group "$RG" -o json 2>/dev/null)" && [ -n "$ACR_JSON" ]; }
@@ -153,6 +163,7 @@ ACR_SERVER="$(printf '%s' "$ACR_JSON" | jq -r '.loginServer // empty' 2>/dev/nul
 [ -n "$ACR_SERVER" ] || ACR_SERVER="$ACR.azurecr.io"
 [ "$(printf '%s' "$ACR_JSON" | jq -r '.adminUserEnabled // false' 2>/dev/null)" = true ] \
   && warn "registry $ACR has the admin user enabled; it isn't needed (az acr update -n $ACR --admin-enabled false)"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Shared environment (read only) and app name check
@@ -263,7 +274,11 @@ case "$id_type" in
     PRINCIPAL="$(appq '.identity.principalId // empty')" ;;
 esac
 [ -n "$PRINCIPAL" ] || PRINCIPAL="<principal id of $APP's identity>"
-grant AcrPull "$ACR_ID" "$PRINCIPAL" "AcrPull for the app on $ACR"
+if sr_uses_shared; then
+  sr_grant_pull "$PRINCIPAL"
+else
+  grant AcrPull "$ACR_ID" "$PRINCIPAL" "AcrPull for the app on $ACR"
+fi
 
 reg_identity="$(appq --arg s "$ACR_SERVER" \
   '.properties.configuration.registries // [] | .[] | select(.server == $s) | .identity // ""' 2>/dev/null || true)"
